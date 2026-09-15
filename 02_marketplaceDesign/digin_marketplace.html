@@ -2887,9 +2887,23 @@ function updatePreview(){
 
 function submitOffer(){
   const v=id=>{const el=document.getElementById(id);return el?el.value:'';};
-  const monto=parseFloat(v('of-monto'))||0,tasa=parseFloat(v('of-tasa'))||0,plazo=v('of-plazo');
-  /*if(!monto||!tasa||!plazo){alert('Complete al menos el monto, la tasa y el plazo para enviar la oferta.');return;}*/
-  const l=confirmed.loan;const sym=v('of-moneda').startsWith('L')?'L.':'$';
+  const l=confirmed.loan;
+  if(!l.paqueteFlexible){
+    const monto = v('of-monto').trim();const tasa  = v('of-tasa').trim();const plazo = v('of-plazo').trim();
+    if(!monto || !tasa || !plazo){
+      alert('Ingrese valores numéricos de monto, tasa y plazo.');return;
+    }}
+  if(l.paqueteFlexible && l.prod && l.prod.length > 0){
+    for(const p of l.prod){
+      const monto = document.getElementById('pmonto-' + p.cod)?.value.trim();const tasa  = document.getElementById('ptasa-' + p.cod)?.value.trim();const plazo = document.getElementById('pplazo-' + p.cod)?.value.trim();
+      if(!monto || !tasa || !plazo){
+        alert('Indique valores numéricos de monto, tasa y plazo para todos los productores.');return;
+      }}}
+
+  const monto=parseFloat(v('of-monto'))||0;
+  const tasa=parseFloat(v('of-tasa'))||0;
+  const plazo=v('of-plazo');
+  const sym=v('of-moneda').startsWith('L')?'L.':'$';
   document.getElementById('offer-sent-card').innerHTML=`
     <div class="srow"><span class="sr-l">Destinatario</span><span class="sr-v">${l.name}</span></div>
     <div class="srow"><span class="sr-l">Institución oferente</span><span class="sr-v">${U.institutionName}</span></div>
