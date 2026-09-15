@@ -2460,12 +2460,12 @@ function updateEndSessionsAvailability(){
 }
 
 function finishSessionQuestions(sessionNum){
-  const requiredBySession = {'1':['interestingCredits'],'2':['solvesNeed'],'3':['monthlyWtp','conditionsToWtp'],'4':['frecuency'],'5':['alerts']};
+  const requiredBySession = {'1':['interestingCredits'],'2':['monthlyWtp','conditionsToWtp'],'3':['solvesNeed'],'4':['frecuency'],'5':['alerts']};
   const missing = (requiredBySession[sessionNum]||[]).find(id => !document.getElementById(id)?.value.trim());
   if(missing){
     alert('Por favor complete todas las preguntas antes de continuar.');
     document.getElementById(missing)?.focus();return;}
-  const fieldsBySession = {'1':['interestingCredits'],'2':['solvesNeed'],'3':['monthlyWtp','conditionsToWtp'],'4':['frecuency'],'5':['alerts']};
+  const fieldsBySession = {'1':['interestingCredits'],'2':['monthlyWtp','conditionsToWtp'],'3':['solvesNeed'],'4':['frecuency'],'5':['alerts']};
   if(!state.perceptionQuestions) state.perceptionQuestions = {};
   (fieldsBySession[sessionNum]||[]).forEach(id=>{
     const el = document.getElementById(id);
@@ -2488,7 +2488,7 @@ function renderSessionQuestions(sessionNum){
   <div class="o-form"><div>
     <div class="fs-title">Bloque de interés</div>
     <div class="frow">
-      <div class="fg full"><label class="flabel">¿Qué tan interesante le resultan los créditos de demostración?<span class="required">*</span></label>
+      <div class="fg full"><label class="flabel">¿Qué tan interesante le resulta esta forma de visualizar créditos?<span class="required">*</span></label>
         <div class="fhelp">Responda en una escala del 1 al 5, siendo 1 "muy poco interesante" y 5 "muy interesante".</div> 
         <select class="fsel" id="interestingCredits" onchange="toggleOther(this)"><option value="">Seleccionar...</option>
         <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
@@ -2496,19 +2496,19 @@ function renderSessionQuestions(sessionNum){
     <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('1')">Guardar →</button></div>`,
     '2': `
   <div class="o-form"><div>
+    <div class="fs-title">Bloque de valor percibido</div>
+    <div class="frow">
+      <div class="fg full"><label class="flabel">Si tuviera acceso a una suscripción que le permitiera ver créditos de esta manera, ¿cuánto estaría dispuesto(a) a pagar mensualmente por ella?<span class="required">*</span></label><input class="finp-s" id="monthlyWtp" type="number" placeholder="Número de Lempiras"></div>
+      <div class="fg full"><label class="flabel">¿Qué condiciones debería incluir la suscripción mensual para que ese monto sea justo para usted?<span class="required">*</span></label><input class="finp-s" id="conditionsToWtp" type="text"></div>
+    </div><br>
+    <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('2')">Guardar →</button></div>`,
+    '3': `
+  <div class="o-form"><div>
     <div class="fs-title">Bloque de interés</div>
     <div class="frow">
       <div class="fg full"><label class="flabel">¿Cree que estos créditos podrían resolver una necesidad que su institución tiene hoy?<span class="required">*</span></label>
         <select class="fsel" id="solvesNeed" onchange="toggleOther(this)"><option value="">Seleccionar...</option>
         <option value="yes">Sí</option><option value="no">No</option></select></div>
-    </div><br>
-    <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('2')">Guardar →</button></div>`,
-    '3': `
-  <div class="o-form"><div>
-    <div class="fs-title">Bloque de valor percibido</div>
-    <div class="frow">
-      <div class="fg full"><label class="flabel">Si tuviera acceso a una suscripción que le permitiera ver créditos de esta manera, ¿cuánto estaría dispuesto(a) a pagar mensualmente por ella?<span class="required">*</span></label><input class="finp-s" id="monthlyWtp" type="number" placeholder="Número de Lempiras"></div>
-      <div class="fg full"><label class="flabel">¿Qué condiciones debería incluir la suscripción mensual para que ese monto sea justo para usted?<span class="required">*</span></label><input class="finp-s" id="conditionsToWtp" type="text"></div>
     </div><br>
     <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('3')">Guardar →</button></div>`,
     '4': `
@@ -2531,7 +2531,7 @@ function renderSessionQuestions(sessionNum){
     <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('5')">Guardar →</button></div>`
   };
   list.innerHTML = blocks[sessionNum] || '';
-  const fieldsBySession = {'1':['interestingCredits'],'2':['solvesNeed'],'3':['monthlyWtp','conditionsToWtp'],'4':['frecuency'],'5':['alerts']};
+  const fieldsBySession = {'1':['interestingCredits'],'2':['monthlyWtp','conditionsToWtp'],'3':['solvesNeed'],'4':['frecuency'],'5':['alerts']};
   (fieldsBySession[sessionNum]||[]).forEach(id=>{
     const el = document.getElementById(id);
     const val = state.perceptionQuestions && state.perceptionQuestions[id];
