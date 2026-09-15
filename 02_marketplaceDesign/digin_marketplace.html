@@ -350,8 +350,6 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
       <button class="loan-subtab" data-type="1" onclick="switchSession('1')">Sesión 1</button>
       <button class="loan-subtab" data-type="2" onclick="switchSession('2')">Sesión 2</button>
       <button class="loan-subtab" data-type="3" onclick="switchSession('3')">Sesión 3</button>
-      <button class="loan-subtab" data-type="4" onclick="switchSession('4')">Sesión 4</button>
-      <button class="loan-subtab" data-type="5" onclick="switchSession('5')">Sesión 5</button>
       <button class="loan-subtab" data-type="endSessions" onclick="switchSession('endSessions')">Finalizar</button>
     </div>
 
@@ -2460,12 +2458,12 @@ function updateEndSessionsAvailability(){
 }
 
 function finishSessionQuestions(sessionNum){
-  const requiredBySession = {'1':['interestingCredits'],'2':['monthlyWtp','conditionsToWtp'],'3':['solvesNeed'],'4':['frecuency'],'5':['alerts']};
+  const requiredBySession = {'1':['interestingCredits','solvesNeed'],'2':['monthlyWtp','conditionsToWtp'],'3':['frecuency','alerts']};
   const missing = (requiredBySession[sessionNum]||[]).find(id => !document.getElementById(id)?.value.trim());
   if(missing){
     alert('Por favor complete todas las preguntas antes de continuar.');
     document.getElementById(missing)?.focus();return;}
-  const fieldsBySession = {'1':['interestingCredits'],'2':['monthlyWtp','conditionsToWtp'],'3':['solvesNeed'],'4':['frecuency'],'5':['alerts']};
+  const fieldsBySession = {'1':['interestingCredits','solvesNeed'],'2':['monthlyWtp','conditionsToWtp'],'3':['frecuency','alerts']};
   if(!state.perceptionQuestions) state.perceptionQuestions = {};
   (fieldsBySession[sessionNum]||[]).forEach(id=>{
     const el = document.getElementById(id);
@@ -2492,6 +2490,9 @@ function renderSessionQuestions(sessionNum){
         <div class="fhelp">Responda en una escala del 1 al 5, siendo 1 "muy poco interesante" y 5 "muy interesante".</div> 
         <select class="fsel" id="interestingCredits" onchange="toggleOther(this)"><option value="">Seleccionar...</option>
         <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+      <div class="fg full"><label class="flabel">¿Cree que estos créditos podrían resolver una necesidad que su institución tiene hoy?<span class="required">*</span></label>
+        <select class="fsel" id="solvesNeed" onchange="toggleOther(this)"><option value="">Seleccionar...</option>
+        <option value="yes">Sí</option><option value="no">No</option></select></div>
     </div><br>
     <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('1')">Guardar →</button></div>`,
     '2': `
@@ -2504,34 +2505,19 @@ function renderSessionQuestions(sessionNum){
     <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('2')">Guardar →</button></div>`,
     '3': `
   <div class="o-form"><div>
-    <div class="fs-title">Bloque de interés</div>
-    <div class="frow">
-      <div class="fg full"><label class="flabel">¿Cree que estos créditos podrían resolver una necesidad que su institución tiene hoy?<span class="required">*</span></label>
-        <select class="fsel" id="solvesNeed" onchange="toggleOther(this)"><option value="">Seleccionar...</option>
-        <option value="yes">Sí</option><option value="no">No</option></select></div>
-    </div><br>
-    <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('3')">Guardar →</button></div>`,
-    '4': `
-  <div class="o-form"><div>
     <div class="fs-title">Bloque de uso</div>
     <div class="frow">
       <div class="fg full"><label class="flabel">¿Con qué frecuencia cree que utilizaría esta suscripción si estuviera disponible?<span class="required">*</span></label>
         <select class="fsel" id="frecuency" onchange="toggleOther(this)"><option value="">Seleccionar...</option>
         <option value="daily">Diario</option><option value="weekly">Semanal</option><option value="biweekly">Quincenal</option><option value="monthly">Mensual</option><option value="moreThanMonthly">Cada varios meses</option><option value="notUsing">No la utilizaría</option></select></div>
-    </div><br>
-    <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('4')">Guardar →</button></div>`,
-    '5': `
-  <div class="o-form"><div>
-    <div class="fs-title">Bloque de uso</div>
-    <div class="frow">
       <div class="fg full"><label class="flabel">¿Prefiere recibir alertas sobre nuevos créditos disponibles o prefiere buscarlos solo cuando lo necesite?<span class="required">*</span></label>
         <select class="fsel" id="alerts" onchange="toggleOther(this)"><option value="">Seleccionar...</option>
         <option value="alertas">Recibir alertas</option><option value="buscar">Buscar cuando lo necesite</option></select></div>
     </div><br>
-    <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('5')">Guardar →</button></div>`
+    <div class="btn-row"><button class="btn-p" onclick="finishSessionQuestions('3')">Guardar →</button></div>`
   };
   list.innerHTML = blocks[sessionNum] || '';
-  const fieldsBySession = {'1':['interestingCredits'],'2':['monthlyWtp','conditionsToWtp'],'3':['solvesNeed'],'4':['frecuency'],'5':['alerts']};
+  const fieldsBySession = {'1':['interestingCredits','solvesNeed'],'2':['monthlyWtp','conditionsToWtp'],'3':['frecuency','alerts']};
   (fieldsBySession[sessionNum]||[]).forEach(id=>{
     const el = document.getElementById(id);
     const val = state.perceptionQuestions && state.perceptionQuestions[id];
@@ -2589,7 +2575,7 @@ function renderAccess(){
   const mA=`<div class="mi"><div class="mi-lbl">Aval IC</div><div class="mi-val ${l.acopio ? 'mv-g' : 'mv-m'}">${l.acopio ? 'Sí' : 'No'}</div></div>`;
   const mF=`<div class="mi"><div class="mi-lbl">Paquete flexible</div><div class="mi-val ${l.paqueteFlexible ? 'mv-g' : 'mv-m'}">${l.paqueteFlexible ? 'Sí' : 'No'}</div></div>`;
   h+=`<div class="ahdr"><div class="ahdr-top"><div><div class="aname">${l.name}</div></div></div><div class="ameta">${mX}${mP}${mA}${mF}</div></div>`;
-  h+=`<div class="access-actions"><button class="btn-ol" onclick="exportPdf()">⬇ Exportar PDF</button><button class="btn-p" onclick="goOffer()">Estructurar oferta de crédito →</button></div>`;
+  h+=`<div class="access-actions"><button class="btn-p" onclick="goOffer()">Estructurar oferta de crédito →</button></div>`;
 
   const hasFundamentals = tierOn;
   const hasEsg = esgKeys.length > 0;
@@ -2597,9 +2583,9 @@ function renderAccess(){
 
   if(L.testValue==='yes'){
     if(hasFundamentals){
-      h+=`<div class="sc"><div class="sc-hdr"><div class="sc-icon si-b">◈</div><div><div class="sc-title">Información del grupo de productores</div></div></div>
+      h+=`<div class="sc"><div class="sc-hdr"><div class="sc-icon si-b">◈</div><div><div class="sc-title">Información del productor o grupo de productores</div></div></div>
         <div class="sc-body"><div class="ig">
-          <div class="ic"><div class="ic-l">Monto solicitado, total del grupo de productores</div><div class="ic-v mv-g">L. ${l.productores}</div></div>
+          <div class="ic"><div class="ic-l">Monto solicitado, total del productor o grupo de productores</div><div class="ic-v mv-g">L. ${l.productores}</div></div>
           <div class="ic"><div class="ic-l">Destino de los créditos</div><div class="ic-v">${l.destinos}</div></div>
           <div class="ic"><div class="ic-l">Número de productores</div><div class="ic-v mv-g">${l.nProd}</div></div>
           <div class="ic"><div class="ic-l">Paquete flexible</div><div class="ic-v">${l.paqueteFlexible ? 'Sí' : 'No'}</div></div>
@@ -2658,7 +2644,7 @@ function renderAccess(){
         </div></div></div>`;
     }
 
-  h += `<div class="access-actions"><button class="btn-ol" onclick="exportPdf()">⬇ Exportar PDF</button><button class="btn-p" onclick="goOffer()">Estructurar oferta de crédito →</button>
+  h += `<div class="access-actions"><button class="btn-p" onclick="goOffer()">Estructurar oferta de crédito →</button>
   ${l.testValue === 'yes' ? `<button class="btn-offer" onclick="goMkt()">Explorar más créditos</button>` : ''}</div>`;
   document.getElementById('access-inner').innerHTML=h;
 }
@@ -2697,47 +2683,6 @@ function renderAccess(){
     <rect x="2" y="2" width="130" height="12" rx="2" fill="white" opacity="0.75"/>
     <text x="5" y="10" font-size="7" fill="#374151" font-family="monospace">${p.geo}</text>
   </svg>`;
-}
-
-function exportPdf(){
-  const l = confirmed && confirmed.loan;
-  if(!l || !l.prod || l.prod.length===0){
-    window.print();
-    return;
-  }
-  const prevState = {};
-  l.prod.forEach(p=>{
-    const exp = document.getElementById('pexp-'+p.cod);
-    const prow = document.getElementById('prow-'+p.cod);
-    prevState[p.cod] = {expOpen: !!(exp && exp.classList.contains('open')), prowOpen: !!(prow && prow.classList.contains('open'))};
-  });
-  const prevOpenProd = _openProd;
-  // Expand all rows and ensure content is rendered
-  l.prod.forEach(p=>{
-    const exp = document.getElementById('pexp-'+p.cod);
-    const prow = document.getElementById('prow-'+p.cod);
-    if(prow) prow.classList.add('open');
-    if(exp) exp.classList.add('open');
-    fillProd(p.cod, true);
-  });
-  _openProd = null;
-  // Give the browser a moment to reflow before printing
-  setTimeout(()=>{
-    window.print();
-    // Restore previous open/closed state
-    l.prod.forEach(p=>{
-      const exp = document.getElementById('pexp-'+p.cod);
-      const prow = document.getElementById('prow-'+p.cod);
-      const prev = prevState[p.cod];
-      if(exp){
-        if(prev.expOpen) exp.classList.add('open'); else exp.classList.remove('open');
-      }
-      if(prow){
-        if(prev.prowOpen) prow.classList.add('open'); else prow.classList.remove('open');
-      }
-    });
-    _openProd = prevOpenProd;
-  }, 150);
 }
 
 let _openProd=null;
