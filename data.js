@@ -4,7 +4,7 @@ const USERS=[
   {username:'3',pass:'3',role:'imf',institutionName:'ODEF Financiera - Oficial de Cartera',grupoId:3},
   {username:'banco@lafise.hn',pass:'banco2026',role:'banco',institutionName:'Banco LAFISE - Analista de Crédito',grupoId:4},
   {username:'gestor@cofemarcala.hn',pass:'coop2026',role:'coop',institutionName:'Coop. Cafetalera Marcala',grupoId:5},
-  {username:'oficial@odef.hn',pass:'imf2026',role:'imf',institutionName:'ODEF Financiera - Oficial de Cartera ',grupoId:6},
+  {username:'oficial@odef.hn',pass:'imf2026',role:'imf',institutionName:'ODEF Financiera - Oficial de Cartera',grupoId:6},
   /*CONFIANZA*/
   {username:'CONFIANZA_u01',pass:'A7k2M9',role:'banco',institutionName:'Confianza SA-FGR',grupoId:1},
   {username:'CONFIANZA_u02',pass:'B3m8Q4',role:'banco',institutionName:'Confianza SA-FGR',grupoId:2},
