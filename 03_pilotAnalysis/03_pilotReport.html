@@ -11,7 +11,7 @@
 
 
 
-<title>DIGIN_Logica_Funcional</title>
+<title>WTP DCE Pilot — Preliminary Results</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -348,535 +348,481 @@ display: none;
 
 
 
+<h1 class="title toc-ignore">WTP DCE Pilot — Preliminary Results</h1>
 
 </div>
 
 
-<div id="dig-in-mercado-de-crédito-agrícola" class="section level1">
-<h1>DIG-IN · Mercado de Crédito Agrícola</h1>
-<div id="documento-de-replicación-lógica-del-sistema" class="section level2">
-<h2>Documento de Replicación Lógica del Sistema</h2>
-<blockquote>
-<p><strong>Nota de autoría:</strong> Este documento describe el
-comportamiento funcional del sistema tal como se infiere de su
-implementación. Fue elaborado para permitir que un equipo independiente
-replique la lógica con sus propias decisiones de diseño y tecnología.
-<em>Las notas pendientes de considerar quedan incluidas en fuente
-itálica</em>.</p>
-</blockquote>
-<hr />
-</div>
-<div id="fase-1-mapa-lógico" class="section level2">
-<h2>FASE 1 · MAPA LÓGICO</h2>
-<div id="entidades-del-sistema" class="section level3">
-<h3>1.1 Entidades del sistema</h3>
-<p><strong>Usuario autenticado</strong> La entidad central que
-condiciona todo el comportamiento. Tiene identidad (nombre), rol (banco
-/ cooperativa / microfinanciera) y un saldo de créditos disponible para
-consumir durante la sesión.</p>
-<p><strong>Crédito (Loan)</strong> La unidad de negocio central. Tiene
-tipo (<code>banco</code> -refiere al paquete de acopio intermediario +
-grupo de productores-, <code>coop</code> -crédito individual a
-productores-, <code>grupo</code> -credito a un grupo de productores-),
-atributos financieros, y puede contener un conjunto de productores
-vinculados. Es el objeto que el usuario explora, desbloquea y
-eventualmente evalúa para ofertar.</p>
-<p><strong>Productor</strong> Subentidad de un crédito. Tiene perfil
-productivo (variedad, historial, geolocalización, carnet de registro…),
-indicadores de elegibilidad (verificación regulatoria EU, aval de una
-entidad de garantía externa, reporte en central de riesgos) y sus
-propias métricas ESG individuales.</p>
-<p><strong>Métricas ESG</strong> Conjunto fijo de 8 indicadores
-ambientales. Existen en dos niveles: agregadas al nivel del crédito
-(calculadas como promedio o moda de los productores vinculados) e
-individuales por productor. Son productos de información que el usuario
-adquiere de forma desagregada.</p>
-<p><strong>Carrito de compra (sesión de detalle)</strong> Estado
-transitorio que representa la selección actual antes de confirmar el
-pago. Contiene dos componentes opcionales: el bloque de información
-fundamental del crédito y las métricas ESG seleccionadas (una, varias, o
-todas).</p>
-<p><strong>Oferta de crédito</strong> Artefacto que el usuario produce
-tras acceder a la información de un crédito. Contiene las condiciones
-financieras que el prestamista propone al intermediario. Es el producto
-final de la jornada del usuario en el sistema.</p>
-<hr />
-</div>
-<div id="variables-que-condicionan-flujos" class="section level3">
-<h3>1.2 Variables que condicionan flujos</h3>
+<div id="data-quality" class="section level2">
+<h2>Data quality</h2>
 <table>
 <colgroup>
-<col width="33%" />
-<col width="33%" />
-<col width="33%" />
+<col width="9%" />
+<col width="9%" />
+<col width="12%" />
+<col width="13%" />
+<col width="12%" />
+<col width="9%" />
+<col width="12%" />
+<col width="9%" />
+<col width="10%" />
 </colgroup>
 <thead>
 <tr class="header">
-<th>Variable</th>
-<th>Tipo</th>
-<th>Efecto</th>
+<th align="right">n_observations</th>
+<th align="right">n_respondents</th>
+<th align="right">tasks_per_resp_min</th>
+<th align="right">tasks_per_resp_mean</th>
+<th align="right">tasks_per_resp_max</th>
+<th align="right">missing_choice</th>
+<th align="right">missing_attributes</th>
+<th align="right">accepted_share</th>
+<th align="right">statusquo_share</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>rol del usuario</code></td>
-<td>Enum: banco / coop / imf</td>
-<td>Determina qué conjunto de créditos se muestra y cómo se presentan
-sus datos</td>
-</tr>
-<tr class="even">
-<td><code>tipo del crédito</code></td>
-<td>Enum: banco / coop / grupo</td>
-<td>Cambia la estructura del detalle desbloqueado y el contenido de la
-oferta.</td>
-</tr>
-<tr class="odd">
-<td><code>tierOn</code></td>
-<td>Booleano</td>
-<td>Activa o desactiva el bloque de información fundamental en el
-carrito</td>
-</tr>
-<tr class="even">
-<td><code>esgSel</code></td>
-<td>Mapa de ids</td>
-<td>Cuáles métricas ESG están seleccionadas; cada una tiene costo
-independiente</td>
-</tr>
-<tr class="odd">
-<td><code>paqueteFlexible</code></td>
-<td>Booleano del crédito</td>
-<td>Habilita o no la tabla de oferta individual por productor en el
-formulario de oferta</td>
-</tr>
-<tr class="even">
-<td><code>confirmed</code></td>
-<td>Objeto de sesión</td>
-<td>Consolida todo lo comprado; conduce el renderizado del acceso y de
-la oferta</td>
-</tr>
-<tr class="odd">
-<td><code>saldo (wallet)</code></td>
-<td>Entero de sesión</td>
-<td>Se descuenta al confirmar; refleja el consumo</td>
+<td align="right">648</td>
+<td align="right">9</td>
+<td align="right">72</td>
+<td align="right">72</td>
+<td align="right">72</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0.523</td>
+<td align="right">0.477</td>
 </tr>
 </tbody>
 </table>
-<hr />
+<p><em>(Add your description here.)</em></p>
 </div>
-<div id="estados-del-sistema" class="section level3">
-<h3>1.3 Estados del sistema</h3>
-<ol style="list-style-type: decimal">
-<li><strong>Login</strong></li>
-<li><strong>Autenticado en el mercado</strong> — el usuario ve la lista
-de créditos filtrada por su rol, además de su saldo disponible en la
-billetera.</li>
-<li><strong>Selección de producto (detalle / carrito)</strong> — el
-usuario configura qué información desea adquirir para un crédito
-específico.</li>
-<li><strong>Confirmación exitosa</strong> — el pago fue procesado; se
-generó el objeto <code>confirmed</code> y se descontó el saldo de la
-billetera.</li>
-<li><strong>Acceso a la información</strong> — el usuario navega la
-información desbloqueada del crédito.</li>
-<li><strong>Estructuración de oferta</strong> — el usuario construye y
-previsualiza una propuesta de crédito.</li>
-<li><strong>Oferta enviada</strong> — estado terminal de la jornada para
-ese crédito.</li>
-</ol>
-<p>Los estados 3–7 están ligados a un crédito específico. Cerrar sesión
-regresa al estado 1.</p>
-<hr />
+<div id="choice-shares-by-attribute-level" class="section level2">
+<h2>Choice shares by attribute level</h2>
+<table>
+<thead>
+<tr class="header">
+<th align="left">attribute</th>
+<th align="left">level</th>
+<th align="right">n</th>
+<th align="right">share_of_data</th>
+<th align="right">accept_rate</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">acopio</td>
+<td align="left">0</td>
+<td align="right">324</td>
+<td align="right">0.500</td>
+<td align="right">0.417</td>
+</tr>
+<tr class="even">
+<td align="left">acopio</td>
+<td align="left">1</td>
+<td align="right">324</td>
+<td align="right">0.500</td>
+<td align="right">0.630</td>
+</tr>
+<tr class="odd">
+<td align="left">productores</td>
+<td align="left">10000</td>
+<td align="right">162</td>
+<td align="right">0.250</td>
+<td align="right">0.463</td>
+</tr>
+<tr class="even">
+<td align="left">productores</td>
+<td align="left">1e+05</td>
+<td align="right">216</td>
+<td align="right">0.333</td>
+<td align="right">0.569</td>
+</tr>
+<tr class="odd">
+<td align="left">productores</td>
+<td align="left">50000</td>
+<td align="right">270</td>
+<td align="right">0.417</td>
+<td align="right">0.522</td>
+</tr>
+<tr class="even">
+<td align="left">nProd</td>
+<td align="left">1</td>
+<td align="right">108</td>
+<td align="right">0.167</td>
+<td align="right">0.509</td>
+</tr>
+<tr class="odd">
+<td align="left">nProd</td>
+<td align="left">10</td>
+<td align="right">324</td>
+<td align="right">0.500</td>
+<td align="right">0.528</td>
+</tr>
+<tr class="even">
+<td align="left">nProd</td>
+<td align="left">20</td>
+<td align="right">216</td>
+<td align="right">0.333</td>
+<td align="right">0.523</td>
+</tr>
+<tr class="odd">
+<td align="left">paqueteFlexible</td>
+<td align="left">0</td>
+<td align="right">378</td>
+<td align="right">0.583</td>
+<td align="right">0.481</td>
+</tr>
+<tr class="even">
+<td align="left">paqueteFlexible</td>
+<td align="left">1</td>
+<td align="right">270</td>
+<td align="right">0.417</td>
+<td align="right">0.581</td>
+</tr>
+<tr class="odd">
+<td align="left">fundamentales</td>
+<td align="left">0</td>
+<td align="right">279</td>
+<td align="right">0.431</td>
+<td align="right">0.384</td>
+</tr>
+<tr class="even">
+<td align="left">fundamentales</td>
+<td align="left">1</td>
+<td align="right">369</td>
+<td align="right">0.569</td>
+<td align="right">0.629</td>
+</tr>
+<tr class="odd">
+<td align="left">aclimatar</td>
+<td align="left">0</td>
+<td align="right">273</td>
+<td align="right">0.421</td>
+<td align="right">0.473</td>
+</tr>
+<tr class="even">
+<td align="left">aclimatar</td>
+<td align="left">1</td>
+<td align="right">375</td>
+<td align="right">0.579</td>
+<td align="right">0.560</td>
+</tr>
+<tr class="odd">
+<td align="left">whisp</td>
+<td align="left">0</td>
+<td align="right">264</td>
+<td align="right">0.407</td>
+<td align="right">0.515</td>
+</tr>
+<tr class="even">
+<td align="left">whisp</td>
+<td align="left">1</td>
+<td align="right">384</td>
+<td align="right">0.593</td>
+<td align="right">0.529</td>
+</tr>
+<tr class="odd">
+<td align="left">priceTotal</td>
+<td align="left">100</td>
+<td align="right">216</td>
+<td align="right">0.333</td>
+<td align="right">0.537</td>
+</tr>
+<tr class="even">
+<td align="left">priceTotal</td>
+<td align="left">200</td>
+<td align="right">216</td>
+<td align="right">0.333</td>
+<td align="right">0.477</td>
+</tr>
+<tr class="odd">
+<td align="left">priceTotal</td>
+<td align="left">50</td>
+<td align="right">216</td>
+<td align="right">0.333</td>
+<td align="right">0.556</td>
+</tr>
+</tbody>
+</table>
 </div>
-<div id="eventos-triggers" class="section level3">
-<h3>1.4 Eventos (triggers)</h3>
-<ul>
-<li><strong>Login exitoso:</strong> activa el contexto de usuario y
-carga la lista de créditos.</li>
-<li><strong>Selección de crédito:</strong> carga el objeto
-<code>L</code> y reinicia el estado del carrito.</li>
-<li><strong>Toggle de bloque fundamental:</strong> modifica
-<code>tierOn</code> y recalcula el total.</li>
-<li><strong>Toggle de métrica ESG individual:</strong> modifica
-<code>esgSel</code> y recalcula el total.</li>
-<li><strong>Toggle de todas las ESG:</strong> establece todas o ninguna
-de forma masiva.</li>
-<li><strong>Confirmar acceso:</strong> valida que hay al menos un ítem,
-descuenta el saldo, fija <code>confirmed</code> y transita al estado de
-confirmación.</li>
-<li><strong>Expandir fila de productor:</strong> carga y renderiza el
-detalle individual (perfil + ESG filtradas al subconjunto
-adquirido).</li>
-<li><strong>Estructurar oferta:</strong> carga el formulario pre-cargado
-con los datos del crédito activo.</li>
-<li><strong>Cambio en el formulario de oferta:</strong> recalcula en
-tiempo real la vista previa (incluyendo cuota estimada).</li>
-<li><strong>Enviar oferta:</strong> valida los campos mínimos y transita
-al estado terminal.</li>
-<li><strong>Logout / Volver al mercado:</strong> reinicia la
-paginación.</li>
-</ul>
-<hr />
+<div id="potentially-problematic-attributeslevels" class="section level2">
+<h2>Potentially problematic attributes/levels</h2>
+<table>
+<thead>
+<tr class="header">
+<th align="left">attribute</th>
+<th align="left">level</th>
+<th align="right">n</th>
+<th align="right">share_of_data</th>
+<th align="right">accept_rate</th>
+<th align="left">flag</th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p><em>(Add your description here.)</em></p>
 </div>
-<div id="transiciones-principales" class="section level3">
-<h3>1.5 Transiciones principales</h3>
-<pre><code>Login correcto
-  → Mercado (filtrado por rol)
-    → Seleccionar crédito
-      → Detalle + carrito
-        → Confirmar (total &gt; 0)
-          → Pantalla de éxito
-            → Ver acceso
-              → Estructurar oferta
-                → Enviar oferta
-                  → Estado terminal de oferta
-        → Cancelar / Volver al mercado
-    → Cerrar sesión
-      → Login</code></pre>
-<hr />
+<div id="binary-logit-model" class="section level2">
+<h2>Binary logit model</h2>
+<table>
+<thead>
+<tr class="header">
+<th align="right">N</th>
+<th align="right">logLik</th>
+<th align="right">logLik_null</th>
+<th align="right">McFadden_R2</th>
+<th align="right">AIC</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">648</td>
+<td align="right">-399.4</td>
+<td align="right">-448.5</td>
+<td align="right">0.109</td>
+<td align="right">816.8</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr class="header">
+<th align="left">term</th>
+<th align="right">estimate</th>
+<th align="right">std.error</th>
+<th align="right">statistic</th>
+<th align="right">p.value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">(Intercept)</td>
+<td align="right">-1.5310</td>
+<td align="right">0.9373</td>
+<td align="right">-1.6334</td>
+<td align="right">0.1024</td>
+</tr>
+<tr class="even">
+<td align="left">acopio</td>
+<td align="right">0.9635</td>
+<td align="right">0.3131</td>
+<td align="right">3.0778</td>
+<td align="right">0.0021</td>
+</tr>
+<tr class="odd">
+<td align="left">productores</td>
+<td align="right">0.0000</td>
+<td align="right">0.0000</td>
+<td align="right">2.1642</td>
+<td align="right">0.0304</td>
+</tr>
+<tr class="even">
+<td align="left">nProd</td>
+<td align="right">-0.0283</td>
+<td align="right">0.0156</td>
+<td align="right">-1.8167</td>
+<td align="right">0.0693</td>
+</tr>
+<tr class="odd">
+<td align="left">paqueteFlexible</td>
+<td align="right">0.3989</td>
+<td align="right">0.2277</td>
+<td align="right">1.7516</td>
+<td align="right">0.0798</td>
+</tr>
+<tr class="even">
+<td align="left">fundamentales</td>
+<td align="right">1.1937</td>
+<td align="right">0.4226</td>
+<td align="right">2.8247</td>
+<td align="right">0.0047</td>
+</tr>
+<tr class="odd">
+<td align="left">aclimatar</td>
+<td align="right">0.6810</td>
+<td align="right">0.2519</td>
+<td align="right">2.7034</td>
+<td align="right">0.0069</td>
+</tr>
+<tr class="even">
+<td align="left">whisp</td>
+<td align="right">0.2918</td>
+<td align="right">0.1979</td>
+<td align="right">1.4745</td>
+<td align="right">0.1403</td>
+</tr>
+<tr class="odd">
+<td align="left">priceTotal</td>
+<td align="right">-0.0025</td>
+<td align="right">0.0030</td>
+<td align="right">-0.8327</td>
+<td align="right">0.4050</td>
+</tr>
+</tbody>
+</table>
+<p><em>(Add your description here.)</em></p>
 </div>
+<div id="preliminary-willingness-to-pay" class="section level2">
+<h2>Preliminary willingness to pay</h2>
+<table>
+<thead>
+<tr class="header">
+<th align="left">term</th>
+<th align="right">wtp</th>
+<th align="right">se</th>
+<th align="right">t</th>
+<th align="right">p</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">acopio</td>
+<td align="right">385.706</td>
+<td align="right">529.067</td>
+<td align="right">0.729</td>
+<td align="right">0.466</td>
+</tr>
+<tr class="even">
+<td align="left">productores</td>
+<td align="right">0.003</td>
+<td align="right">0.004</td>
+<td align="right">0.720</td>
+<td align="right">0.472</td>
+</tr>
+<tr class="odd">
+<td align="left">nProd</td>
+<td align="right">-11.316</td>
+<td align="right">14.536</td>
+<td align="right">-0.778</td>
+<td align="right">0.436</td>
+</tr>
+<tr class="even">
+<td align="left">paqueteFlexible</td>
+<td align="right">159.669</td>
+<td align="right">251.943</td>
+<td align="right">0.634</td>
+<td align="right">0.526</td>
+</tr>
+<tr class="odd">
+<td align="left">fundamentales</td>
+<td align="right">477.857</td>
+<td align="right">624.420</td>
+<td align="right">0.765</td>
+<td align="right">0.444</td>
+</tr>
+<tr class="even">
+<td align="left">aclimatar</td>
+<td align="right">272.617</td>
+<td align="right">361.588</td>
+<td align="right">0.754</td>
+<td align="right">0.451</td>
+</tr>
+<tr class="odd">
+<td align="left">whisp</td>
+<td align="right">116.817</td>
+<td align="right">170.094</td>
+<td align="right">0.687</td>
+<td align="right">0.492</td>
+</tr>
+</tbody>
+</table>
+<p><em>(Add your description here.)</em></p>
 </div>
-<div id="fase-2-documento-de-replicación" class="section level2">
-<h2>FASE 2 · DOCUMENTO DE REPLICACIÓN</h2>
-<hr />
-<div id="estructura-lógica-componentes-funcionales" class="section level3">
-<h3>2.1 Estructura lógica: Componentes funcionales</h3>
-<p>El sistema tiene siete <strong>zonas funcionales</strong> que operan
-en secuencia:</p>
-<p><strong>Zona 1 — Autenticación</strong> Valida credenciales contra un
-directorio de usuarios. Al autenticar, establece el perfil del usuario y
-su saldo de sesión.</p>
-<p><strong>Zona 2 — Mercado (listado)</strong> Muestra los créditos
-disponibles como tarjetas con información parcial. La información
-sensible (detalle, productores, ESG) está marcada visualmente como
-bloqueada. La lista se pagina con ventana fija de <em>n</em> elementos.
-El conjunto de créditos mostrado depende directamente del rol del
-usuario. <em>Pendientes por considerar:</em></p>
-<ul>
-<li><em>Orden de visualización de los créditos, podría ser con la fecha
-de ingreso o la de desembolso</em></li>
-<li><em>¿Cuándo eliminar el crédito? Si se asigna, eliminar. Si nunca se
-asigna, ¿eliminar después de la fecha estimada de desembolso?
-Definir.</em></li>
-<li><em>De pronto agregar una opción para eliminar el crédito de la
-visualización de un usuario, algo tipo “No me interesa”.</em></li>
-</ul>
-<p><strong>Zona 3 — Detalle + Carrito</strong> Permite al usuario
-seleccionar qué información desea adquirir para un crédito específico.
-Tiene dos líneas de producto: el bloque fundamental (con información
-general del crédito e información general del perfil de productores) y
-las métricas ESG (precio fijo por métrica, igual para todas). El total
-se recalcula en tiempo real. El botón de confirmación permanece inactivo
-si el total es cero. <em>Consideración</em>:</p>
-<ul>
-<li><em>Estos pagos se van a actualizar después del estudio de DAP. Muy
-probablemente vayan a depender del número de productores asociados al
-crédito.</em></li>
-</ul>
-<p><strong>Zona 4 — Confirmación de pago</strong> Procesa la transacción
-(descuenta saldo), asigna un “plan” según la combinación adquirida, y
-consolida el objeto de acceso. No hay reversión.</p>
-<p><strong>Zona 5 — Vista de acceso</strong> Renderiza la información
-desbloqueada según el plan adquirido. El contenido varía según el tipo
-de crédito. Los productores se muestran en tabla expandible; al expandir
-una fila se renderizan la información general, el mapa de la parcela y
-las métricas ESG individuales, pero solo las que fueron adquiridas en la
-sesión de compra. <em>Algunas consideraciones:</em></p>
-<ul>
-<li><em>La sección que está debajo de “Estructurar oferta de crédito”
-cambia según el tipo de crédito (<code>banco</code>, <code>coop</code>,
-<code>grupo</code>), es un agregado general.</em></li>
-<li><em>Si se compra el bloque fundamental, se debería habilitar la
-sección que se mencionó arriba, y también la sección de “PERFIL
-PRODUCTIVO” que hay a nivel de productor (dentro del listado
-desplegable).</em></li>
-<li><em>Cada métrica ESG en realidad será el acceso a una pestaña de
-información (de las que hay actualmente en el Marketplace): información
-de productor, de finca, comercial, cartera… y para el futuro,
-información específica por conexiones con la DPI: aclimatar,
-agroclimática, suelos de Honduras… Estas son las pestañas que se activan
-en el pago, no variables individuales.</em></li>
-</ul>
-<p><strong>Zona 6 — Formulario de oferta</strong> Permite al prestamista
-estructurar una propuesta de crédito con condiciones financieras y
-garantías. Si el crédito admite paquete flexible, la tabla de
-productores se habilita para asignar montos individuales. Una vista
-previa se actualiza en tiempo real con cada cambio, incluyendo el
-cálculo estimado de cuota mensual.</p>
-<p><strong>Zona 7 — Confirmación de oferta enviada</strong> Estado
-terminal informativo. Muestra el resumen de lo que fue enviado al
-solicitante de crédito.</p>
-<hr />
-</div>
-<div id="flujo-del-sistema-secuencia-y-decisiones-clave" class="section level3">
-<h3>2.2 Flujo del sistema: Secuencia y decisiones clave</h3>
-<p><strong>Paso 1 — Autenticación</strong> El sistema verifica email y
-contraseña. Si la combinación existe, se establecen: el objeto de
-usuario activo, el saldo del usuario, y el título del mercado (que
-cambia según el rol).</p>
-<p><strong>Paso 2 — Carga del mercado</strong> Se construye la lista de
-créditos combinando dos fuentes según el rol: Actualmente banco ve
-BANCO; coop e imf ven COOP, todos ven grupos (<em>ESTO ESTÁ PENDIENTE
-POR DEFINIR</em>). La paginación se activa solo si el total de tarjetas
-supera <em>n</em>.</p>
-<p><strong>Paso 3 — Apertura de un crédito</strong> Al seleccionar una
-tarjeta, el sistema carga el crédito en contexto y reinicia
-completamente el estado del carrito (<code>tierOn=false</code>,
-<code>esgSel={}</code>). Se navega a la zona de detalle.</p>
-<p><strong>Paso 4 — Configuración del carrito</strong> El usuario activa
-o desactiva los ítems disponibles. Decisión crítica: si el total es 0,
-la confirmación está bloqueada. El sistema no obliga a comprar nada en
-particular; la combinación es libre.</p>
-<ul>
-<li><em>Considerar: agregar una opción de “estructurar oferta” sin
-comprar ninguna información adicional.</em></li>
-</ul>
-<p><strong>Paso 5 — Confirmación</strong> Al confirmar, se ejecutan dos
-operaciones atómicas: descontar el total del saldo de sesión y construir
-el objeto <code>confirmed</code> con el plan clasificado. La
-clasificación del plan es: “Estándar” (solo fundamentales), “Solo ESG”
-(solo métricas), “Premium” (ambos). Este objeto gobierna todo lo que el
-usuario puede ver en la zona de acceso.</p>
-<p><strong>Paso 6 — Navegación del acceso</strong> El sistema renderiza
-secciones condicionadas por <code>confirmed.tierOn</code> y
-<code>confirmed.esgKeys</code>. Si no se adquirió el bloque fundamental,
-la sección de datos del intermediario/productor no aparece. Si no se
-adquirieron ESGs, las métricas agregadas tampoco aparecen. La expansión
-de productores en la tabla también filtra las ESGs al subconjunto
-pagado.</p>
-<ul>
-<li><em>En el plan de “Solo ESG” y en el plan “Premium” cuando aparecen
-las métricas agregadas abajo, está pendiente definir cómo se haría la
-agregación de las variables a nivel de paquete de créditos. También hay
-que definir si esa opción existiría para créditos de un solo productor,
-pues el resumen sería igual al desagregado.</em></li>
-</ul>
-<p><strong>Paso 7 — Oferta</strong> El formulario siempre está
-disponible desde la vista de acceso, independientemente del plan
-adquirido. La tabla de productores editables solo aparece si el crédito
-tiene <code>paqueteFlexible=true</code>. Al enviar, se validan tres
-campos mínimos (monto, tasa, plazo); si faltan, el envío se rechaza con
-alerta.</p>
-<hr />
-</div>
-<div id="variables-condicionantes-solo-las-que-cambian-el-comportamiento" class="section level3">
-<h3>2.3 Variables condicionantes: Solo las que cambian el
-comportamiento</h3>
-<p><strong><code>U.role</code></strong> — La variable de mayor alcance.
-El “rol” afecta qué créditos se visualizan.</p>
-<p><strong><code>L.tipo</code></strong> — Afecta la estructura del
-detalle dentro del acceso. Hay tres ramas: <code>banco</code>
-(intermediario comercializador con productores vinculados),
-<code>coop</code> (productor individual), y <code>grupo</code>
-(colectivo de productores con información agregada).</p>
-<p><strong><code>L.paqueteFlexible</code></strong> — Booleano que
-habilita la tabla de asignación por productor en la oferta. Un crédito
-con <code>paqueteFlexible=false</code> no muestra esa sección.</p>
-<p><strong><code>confirmed.tierOn</code></strong> — Si es falso, toda la
-sección de información fundamental en la vista de acceso queda
-suprimida, sin importar el tipo de crédito.</p>
-<p><strong><code>confirmed.esgKeys</code></strong> — Si está vacío, las
-tarjetas ESG agregadas del crédito no se renderizan. Cuando se expande
-un productor, solo se muestran las métricas cuyo id está en este
-arreglo.</p>
-<hr />
-</div>
-<div id="datos-y-su-interacción" class="section level3">
-<h3>2.4 Datos y su interacción</h3>
-<p><strong>Estructura de datos</strong></p>
-<p>Hay tres colecciones de créditos (<code>LOANS_BANCO</code>,
-<code>LOANS_COOP</code>, <code>LOANS_GRUPO</code>) y una colección de
-métricas ESG de referencia (<code>ESG</code>, <code>ESG_META</code>),
-más el directorio de usuarios (<code>USERS</code>).</p>
-<ul>
-<li><em>Nuevamente, las métricas se actualizarán por conjuntos de datos
-del productor.</em></li>
-</ul>
-<p>Cada crédito es un objeto con dos capas: los atributos del crédito en
-sí (financieros y operativos) y un arreglo de productores vinculados
-(<code>prod</code>), donde cada productor tiene sus propios atributos de
-perfil y su propio arreglo de 8 métricas ESG individuales.</p>
-<p>Cada productor dentro de un crédito tiene un campo
-<code>esgSeed</code> (un entero derivado de su código) que el sistema
-usa para generar un mapa de la parcela/finca.</p>
-<p><strong>Cómo se cargan y transforman</strong></p>
-<p>Para la simulación, los datos viven en memoria como constantes
-globales. <em>Sin embargo, es mejor diseñar una carga asíncrona o API
-externa en el flujo de datos principal. Al autenticar,
-<code>getLoans()</code> construye dinámicamente la lista combinando los
-conjuntos relevantes según el rol.</em></p>
-<p>Para la simulación, <code>computeLoanEsg()</code> Agrega las métricas
-ESG existentes. <em>Sin embargo, como se mencionó arriba, está pendiente
-definir cómo se haría la agregación de las variables a nivel de paquete
-de créditos. También hay que definir si esa opción existiría para
-créditos de un solo productor, pues el resumen sería igual al
-desagregado.</em></p>
-<p><strong>Cómo afectan el flujo</strong></p>
-<p>El campo <code>precio</code> del crédito determina el costo del
-bloque fundamental. Este precio varía por crédito (<em>deberá hacerlo
-dependiendo del número de productores asociados</em>). El costo de cada
-métrica ESG variará de la misma forma y será diferente según la métrica.
-El total del carrito es la suma aritmética de los ítems
-seleccionados.</p>
-<p>El campo <code>aval</code> de cada productor (valor A o B) y
-<code>confianza</code> condicionan las etiquetas de riesgo en la tabla
-de productores y en el perfil expandido. Son datos descriptivos, no
-lógica de negocio que bloquee acciones.</p>
-<p>El campo <code>eu</code> (verificación EUDR) es igualmente
-descriptivo: indica si el productor tiene verificación de deforestación
-de la UE. No bloquea la operación pero es información crítica de
-elegibilidad que el prestamista necesita para estructurar su oferta.</p>
-<hr />
-</div>
-<div id="conjuntos-de-datos-loans_-similitudes-diferencias-y-efecto-en-el-sistema" class="section level3">
-<h3>2.5 Conjuntos de datos LOANS_*: Similitudes, diferencias y efecto en
-el sistema</h3>
-<p><strong>Similitudes entre los tres conjuntos</strong> Todos comparten
-la misma estructura base: <code>id</code>, <code>name</code>,
-<code>region</code>, <code>tipo</code>, <code>plazo</code>,
-<code>precio</code>, <code>nProd</code>, <code>prod[]</code>. Todos los
-créditos tienen productores con ESG individuales. El mecanismo de compra
-(carrito, confirmación, acceso) funciona igual para los tres.</p>
-<p><strong>LOANS_BANCO</strong> Créditos de mayor escala. Tienen dos
-componentes de monto: <code>acopio</code> (para el intermediario) y
-<code>productores</code> (para los productores individuales vinculados).
-Incluyen atributos corporativos como <code>anios</code>,
-<code>volExport</code>, <code>mercados</code>, <code>garantias</code>.
-Pueden tener <code>paqueteFlexible=true</code> o
-<code>paqueteFlexible=false</code>, lo que habilita la tabla de
-asignación individual en la oferta.</p>
-<p><strong>LOANS_COOP</strong> Créditos individuales de productor. No
-tienen <code>acopio</code>. El monto (<code>productores</code>) es el
-crédito personal del productor. Incluyen atributos de trazabilidad
-individual: <code>parcela</code>, <code>carnet</code>,
-<code>contrato</code>, <code>volContrato</code>, <code>geo</code>.
-Siempre tienen <code>paqueteFlexible=false</code>. El
-<code>prod[]</code> contiene un único elemento (el mismo productor que
-encabeza el crédito).</p>
-<p><strong>LOANS_GRUPO</strong> Créditos colectivos. Tienen
-<code>tipo: &#39;grupo&#39;</code> y no tienen <code>acopio</code>. El
-<code>prod[]</code> contiene alrededor de <em>m</em> productores.
-Incluyen atributos de caracterización colectiva:
-<code>volumenTotal</code>, <code>variedades</code>,
-<code>destinos</code>, <code>accesoMercado</code>. Pueden tener
-<code>paqueteFlexible=true</code> o <code>paqueteFlexible=false</code>,
-lo que habilita la tabla de asignación individual en la oferta.</p>
-<p><strong>Efecto en el sistema</strong> El campo <code>tipo</code> del
-crédito es el árbol de decisión más importante en la zona de acceso.
-Determina qué sección de información fundamental se renderiza. El campo
-<code>paqueteFlexible</code> es el segundo árbol de decisión, afectando
-únicamente la zona de oferta. Los créditos <code>LOANS_COOP</code>
-tienen una experiencia de “productor único”: el carrito, el acceso y la
-oferta se comportan igual que para los otros tipos, pero el contenido
-desplegado es solo una persona.</p>
-<hr />
-</div>
-<div id="reglas-de-negocio" class="section level3">
-<h3>2.7 Reglas de negocio</h3>
-<p><strong>Suscripción base siempre activa</strong> Se asume que el
-usuario tiene una membresía activa que le da derecho a ver el listado
-completo.</p>
-<p><strong>Acceso por ítem, no por crédito</strong> El usuario puede
-comprar solo las métricas ESG sin el bloque fundamental, solo el bloque
-fundamental sin ESG, o cualquier combinación. No hay bundling
-obligatorio. Esto significa que la vista de acceso puede estar
-parcialmente vacía si el usuario compró solo un componente.</p>
-<p><strong>Las ESGs del acceso son un subconjunto de las
-compradas</strong> Al expandir un productor en la tabla, el sistema solo
-muestra las métricas ESG cuyo id esté en <code>confirmed.esgKeys</code>.
-Si el usuario compró solo 2 de 8 métricas, el productor solo muestra 2
-tarjetas. Esto aplica tanto al nivel de crédito como al nivel de
-productor individual.</p>
-<p><strong>La oferta siempre está disponible</strong> No hay restricción
-de plan para acceder al formulario de oferta. Un usuario que compró solo
-una métrica ESG puede igualmente estructurar y enviar una oferta. La
-información que el sistema pre-carga en la cabecera de la oferta
-proviene de <code>confirmed.loan</code>, no del plan adquirido.</p>
-<p><strong>Validación mínima de la oferta</strong> El envío requiere al
-menos monto, tasa y plazo. Los demás campos (garantía, período de
-gracia, seguro, aval, destino, notas) son opcionales. El sistema no
-valida coherencia entre el monto ofertado y el monto solicitado por el
-crédito.</p>
-<ul>
-<li><em>Pendiente confirmar estos condicionantes.</em></li>
-</ul>
-<p><strong>El saldo no bloquea la compra</strong> El saldo de sesión se
-descuenta al confirmar, pero por ahora no hay validación de que el saldo
-sea suficiente antes de proceder. En producción este sería el punto de
-integración con el sistema de facturación.</p>
-<hr />
-</div>
-<div id="guía-de-replicación-orden-lógico-dependencias-y-riesgos" class="section level3">
-<h3>2.8 Guía de replicación: Orden lógico, dependencias y riesgos</h3>
-<p><strong>Orden RECOMENDADO de construcción</strong></p>
-<ol style="list-style-type: decimal">
-<li><strong>Modelo de datos primero.</strong> Antes de construir
-cualquier interfaz, definir las estructuras de Crédito, Productor y
-Métrica ESG con sus relaciones. La distinción entre métricas a nivel de
-crédito (agregadas) y métricas a nivel de productor (individuales) es la
-relación más delicada.</li>
-</ol>
-<ul>
-<li><em>Este primer paso probablemente vaya a cambiar después.</em></li>
-</ul>
-<ol start="2" style="list-style-type: decimal">
-<li><p><strong>Sistema de autenticación y sesión.</strong> Implementar
-el mecanismo de roles antes que cualquier lógica de vista, porque el rol
-condiciona casi todo lo demás.</p></li>
-<li><p><strong>Lógica de composición del mercado.</strong> La función
-que combina los conjuntos de créditos según el rol es el corazón del
-filtrado. Implementar y testear esto de forma aislada.</p></li>
-<li><p><strong>Motor de carrito y confirmación.</strong> Este módulo
-debe ser completamente independiente de la presentación. Su contrato:
-recibe selecciones, calcula totales, emite un objeto de acceso. La
-transición a “confirmado” es irreversible dentro de la sesión.</p></li>
-<li><p><strong>Lógica de agregación ESG.</strong></p></li>
-</ol>
-<ul>
-<li><em>Este paso depende de la información que vaya a quedar en el
-1.</em></li>
-</ul>
-<ol start="6" style="list-style-type: decimal">
-<li><p><strong>Renderizado del acceso.</strong> Con el objeto
-<code>confirmed</code> ya diseñado, este módulo es mayormente
-presentacional. Pero ojo: el filtrado de ESGs por productor (mostrar
-solo las compradas) debe integrarse aquí.</p></li>
-<li><p><strong>Formulario de oferta.</strong> Es el módulo más autónomo.
-Depende solo de <code>confirmed.loan</code> para pre-cargar datos. La
-tabla de paquete flexible es un sub-módulo opcional condicionado por
-<code>paqueteFlexible</code>.</p></li>
-</ol>
-<p><strong>Dependencias críticas</strong></p>
-<p>El objeto <code>confirmed</code> es el pivote del sistema en su
-segunda mitad. Todo lo que ocurre después de la confirmación (acceso,
-oferta, envío) depende de este objeto. Cualquier replicación debe
-diseñar este objeto con cuidado, porque su estructura determina qué
-puede mostrarse y qué no.</p>
-<p>La distinción <code>tipo</code> del crédito (<code>banco</code> /
-<code>coop</code> / <code>grupo</code>) debe estar presente en ese
-objeto porque el renderizado del acceso la necesita incluso si el
-crédito original ya no está en contexto inmediato.</p>
-<p><strong>Riesgos de replicación</strong></p>
-<p>El mayor riesgo es asumir que el contenido del acceso es uniforme. No
-lo es: hay tres ramas de renderizado según el tipo de crédito, y dentro
-de cada rama hay sub-condiciones según el plan adquirido. Un equipo que
-unifique esta lógica perderá información diferenciada por tipo de
-actor.</p>
-<p>El segundo riesgo es tratar las métricas ESG como un bloque
-monolítico. Son individualmente seleccionables y tienen dos
-representaciones (agregada para el crédito, individual para el
-productor), y la vista de productor filtra por lo comprado. Cualquier
-implementación que no respete esta granularidad romperá la lógica de
-monetización por ítem.</p>
-<p>El tercer riesgo es implementar <code>paqueteFlexible</code> como un
-campo cosmético. En realidad habilita una sub-lógica completa de
-asignación por productor en el formulario de oferta, que puede tener
-implicaciones en cómo se procesa la oferta aguas abajo.</p>
-<hr />
-<p><em>Documento generado a partir del análisis de los archivos
-<code>body.html</code>, <code>script.js</code>, y <code>data.js</code>
-de la simulación del sistema DIG-IN · Honduras.</em></p>
-</div>
-</div>
+<div id="sample-size-rule-of-thumb" class="section level2">
+<h2>Sample-size rule of thumb</h2>
+<table>
+<thead>
+<tr class="header">
+<th align="right">tasks_per_respondent</th>
+<th align="right">min_recommended_n</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">5</td>
+<td align="right">150</td>
+</tr>
+<tr class="even">
+<td align="right">10</td>
+<td align="right">75</td>
+</tr>
+<tr class="odd">
+<td align="right">15</td>
+<td align="right">50</td>
+</tr>
+<tr class="even">
+<td align="right">20</td>
+<td align="right">38</td>
+</tr>
+<tr class="odd">
+<td align="right">25</td>
+<td align="right">30</td>
+</tr>
+<tr class="even">
+<td align="right">30</td>
+<td align="right">25</td>
+</tr>
+<tr class="odd">
+<td align="right">35</td>
+<td align="right">22</td>
+</tr>
+<tr class="even">
+<td align="right">40</td>
+<td align="right">19</td>
+</tr>
+<tr class="odd">
+<td align="right">45</td>
+<td align="right">17</td>
+</tr>
+<tr class="even">
+<td align="right">50</td>
+<td align="right">15</td>
+</tr>
+<tr class="odd">
+<td align="right">55</td>
+<td align="right">14</td>
+</tr>
+<tr class="even">
+<td align="right">60</td>
+<td align="right">13</td>
+</tr>
+<tr class="odd">
+<td align="right">65</td>
+<td align="right">12</td>
+</tr>
+<tr class="even">
+<td align="right">70</td>
+<td align="right">11</td>
+</tr>
+<tr class="odd">
+<td align="right">75</td>
+<td align="right">10</td>
+</tr>
+<tr class="even">
+<td align="right">80</td>
+<td align="right">10</td>
+</tr>
+<tr class="odd">
+<td align="right">85</td>
+<td align="right">9</td>
+</tr>
+<tr class="even">
+<td align="right">90</td>
+<td align="right">9</td>
+</tr>
+<tr class="odd">
+<td align="right">95</td>
+<td align="right">8</td>
+</tr>
+<tr class="even">
+<td align="right">100</td>
+<td align="right">8</td>
+</tr>
+</tbody>
+</table>
+<p><img role="img" src="data:image/png;base64,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" width="672" /></p>
+<p><em>(Add your description here.)</em></p>
 </div>
 
 

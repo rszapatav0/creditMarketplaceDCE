@@ -1,0 +1,58 @@
+---
+title: "WTP DCE Pilot — Preliminary Results"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+SOURCE_ONLY <- TRUE
+results <- readRDS("pilotResults.rds")
+```
+
+## Data quality
+
+```{r}
+knitr::kable(results$diagnostics)
+```
+
+*(Add your description here.)*
+
+## Choice shares by attribute level
+
+```{r}
+knitr::kable(results$level_summary)
+```
+
+## Potentially problematic attributes/levels
+
+```{r}
+knitr::kable(results$flags)
+```
+
+*(Add your description here.)*
+
+## Binary logit model
+
+```{r}
+knitr::kable(results$model_stats)
+knitr::kable(results$coef_df, digits = 4)
+```
+
+*(Add your description here.)*
+
+## Preliminary willingness to pay
+
+```{r}
+knitr::kable(results$wtp_table, digits = 3)
+```
+
+*(Add your description here.)*
+
+## Sample-size rule of thumb
+
+```{r}
+knitr::kable(results$sample_size_tbl)
+results$ss_plot
+```
+
+*(Add your description here.)*

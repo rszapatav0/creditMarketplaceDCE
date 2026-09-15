@@ -1,0 +1,15 @@
+# 01_DCEdesign
+01_DCEdesign/documentation/
+01_DCEdesign/.Rhistory
+
+# 02_marketplaceDesign
+02_marketplaceDesign/old/
+
+# 03_pilot
+03_pilotAnalysis/reports/
+03_pilotAnalysis/.Rhistory
+03_pilotAnalysis/DCEpilotData.xlsx
+
+# General
+.Rproj.user/
+.Rhistory/
