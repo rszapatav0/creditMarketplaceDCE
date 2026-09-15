@@ -332,12 +332,7 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
     <div class="login-err" id="lerr">Credenciales incorrectas. Intente de nuevo.</div>
     <button class="btn-p" style="width:100%" onclick="doLogin()">Ingresar →</button>
   </div>
-  <div class="cred-box">
-    <div class="cred-title">Credenciales de demostración</div>
-    <div class="cred-row"><span class="cred-role">Banco Comercial</span><span class="cred-vals">usuario: <span>banco@lafise.hn</span><br>contraseña: <span>banco2026</span></span></div>
-    <div class="cred-row"><span class="cred-role">Cooperativa</span><span class="cred-vals">usuario: <span>gestor@cofemarcala.hn</span><br>contraseña: <span>coop2026</span></span></div>
-    <div class="cred-row"><span class="cred-role">Microfinanciera</span><span class="cred-vals">usuario: <span>oficial@odef.hn</span><br>contraseña: <span>imf2026</span></span></div>
-  </div>
+
 </div>
 
 <!-- S2: MARKETPLACE -->
@@ -613,8 +608,78 @@ const USERS=[
   {username:'GUADALUPE_user5',pass:'B5j1N9',role:'coop',institutionName:'Cooperativa Guadalupe',grupoId:2},
   {username:'GUADALUPE_user6',pass:'C9k6P2',role:'coop',institutionName:'Cooperativa Guadalupe',grupoId:1},
   {username:'GUADALUPE_user7',pass:'D3m7Q8',role:'coop',institutionName:'Cooperativa Guadalupe',grupoId:7},
+
 ];
 
+// ── User catalog management ────────────────────────────────────────────────
+// The initial USERS array remains the built-in seed. Reportería can replace it
+// with a managed catalog stored in this browser, and the main login always reads
+// this same USERS array.
+const USER_CATALOG_STORAGE_KEY='digin:userCatalog:v1';
+const USER_DISABLED_STORAGE_KEY='digin:disabledUsers:v1';
+const DEFAULT_USERS=USERS.map(user=>({...user}));
+const RUNTIME_DISABLED_USERS=new Set();
+
+function loadDisabledUserSet(){
+  try{
+    const raw=localStorage.getItem(USER_DISABLED_STORAGE_KEY);
+    const parsed=raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.map(v=>String(v)) : []);
+  }catch(err){
+    console.warn('No fue posible cargar el registro de usuarios deshabilitados.',err);
+    return new Set();
+  }
+}
+
+function persistDisabledUserSet(set){
+  try{
+    localStorage.setItem(USER_DISABLED_STORAGE_KEY,JSON.stringify([...set]));
+    return true;
+  }catch(err){
+    console.warn('No fue posible guardar el registro de usuarios deshabilitados.',err);
+    return false;
+  }
+}
+
+function normalizeManagedUser(user){
+  if(!user || typeof user!=='object') return null;
+  const username=String(user.username ?? '').trim();
+  const pass=String(user.pass ?? '');
+  const role=['banco','coop','imf'].includes(user.role) ? user.role : '';
+  const institutionName=String(user.institutionName ?? '').trim();
+  const grupoId=Number(user.grupoId);
+  const rawStatus=String(user.status ?? (user.enabled===false ? 'disabled' : 'active')).toLowerCase();
+  const status=rawStatus==='disabled' ? 'disabled' : 'active';
+  const createdAt=user.createdAt ? String(user.createdAt) : '';
+  const updatedAt=user.updatedAt ? String(user.updatedAt) : '';
+  if(!username || !pass || !role || !institutionName || !Number.isInteger(grupoId) || grupoId<1 || grupoId>7) return null;
+  return {username,pass,role,institutionName,grupoId,status,createdAt,updatedAt};
+}
+
+function loadManagedUserCatalog(){
+  try{
+    const raw=localStorage.getItem(USER_CATALOG_STORAGE_KEY);
+    if(!raw) return;
+    const parsed=JSON.parse(raw);
+    if(!Array.isArray(parsed)) return;
+    const clean=parsed.map(normalizeManagedUser).filter(Boolean);
+    if(clean.length || parsed.length===0) USERS.splice(0,USERS.length,...clean);
+  }catch(err){
+    console.warn('No fue posible cargar el catálogo administrable de usuarios.',err);
+  }
+}
+
+function persistManagedUserCatalog(){
+  try{
+    localStorage.setItem(USER_CATALOG_STORAGE_KEY,JSON.stringify(USERS));
+    return true;
+  }catch(err){
+    console.warn('No fue posible guardar el catálogo administrable de usuarios.',err);
+    return false;
+  }
+}
+
+loadManagedUserCatalog();
 
 // ── Metrics and tools ──────────────────────────────────────────────────────
 const walletInitial=100000;
@@ -1662,113 +1727,118 @@ const LOANS_GRUPO=[
    ══════════════════════════════════════════════════════════════════════ */
 
 const PERSISTENCE_CONFIG = {
-  // Example once deployed: '/api'  or  'https://myapp.example.com/api'
-  API_BASE_URL: null,
-  // Abort a network call after this long and fall back to the local cache.
-  REQUEST_TIMEOUT_MS: 4000,
+  // Endpoint central incluido con esta entrega. En la ruta /report se resuelve
+  // automáticamente contra la carpeta de la aplicación principal.
+  API_BASE_URL: (()=>{
+    try{
+      const u=new URL(window.location.href);
+      let path=u.pathname;
+      if(/\/report\/?$/i.test(path)) path=path.replace(/\/report\/?$/i,'/digin_api.php');
+      else if(/\/report\/index\.html$/i.test(path)) path=path.replace(/\/report\/index\.html$/i,'/digin_api.php');
+      else path=path.replace(/[^/]*$/,'digin_api.php');
+      return u.origin+path;
+    }catch(_){ return './digin_api.php'; }
+  })(),
+  REQUEST_TIMEOUT_MS: 8000,
 };
+
+const RemoteCentral = (function(){
+  const ADMIN_SECRET_SESSION_KEY='digin:central:adminSecret';
+  let userToken='';
+  function base(){ return PERSISTENCE_CONFIG.API_BASE_URL; }
+  function url(action, params={}){
+    const u=new URL(base(), window.location.href);
+    u.searchParams.set('action',action);
+    Object.entries(params).forEach(([k,v])=>{ if(v!==undefined && v!==null) u.searchParams.set(k,String(v)); });
+    return u.toString();
+  }
+  async function request(action,{method='GET',body=null,userAuth=false,adminAuth=false,params={}}={}){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),PERSISTENCE_CONFIG.REQUEST_TIMEOUT_MS);
+    const headers={'Accept':'application/json'};
+    if(body!==null) headers['Content-Type']='application/json';
+    if(userAuth && userToken) headers['Authorization']='Bearer '+userToken;
+    if(adminAuth){
+      const secret=getAdminSecret();
+      if(!secret) throw new Error('admin-secret-missing');
+      headers['X-Admin-User']='ADMIN';
+      headers['X-Admin-Password']=secret;
+    }
+    try{
+      const res=await fetch(url(action,params),{method,headers,body:body===null?undefined:JSON.stringify(body),signal:controller.signal,cache:'no-store'});
+      let data={};
+      try{ data=await res.json(); }catch(_){ data={}; }
+      if(!res.ok){ const err=new Error(data.error || ('http-'+res.status)); err.status=res.status; err.payload=data; throw err; }
+      return data;
+    }finally{ clearTimeout(timer); }
+  }
+  function setUserToken(token){ userToken=String(token||''); }
+  function clearUserToken(){ userToken=''; }
+  function hasUserToken(){ return !!userToken; }
+  function setAdminSecret(secret){ try{sessionStorage.setItem(ADMIN_SECRET_SESSION_KEY,String(secret||''));}catch(_){} }
+  function getAdminSecret(){ try{return sessionStorage.getItem(ADMIN_SECRET_SESSION_KEY)||'';}catch(_){return '';} }
+  function clearAdminSecret(){ try{sessionStorage.removeItem(ADMIN_SECRET_SESSION_KEY);}catch(_){} }
+  async function login(username,password){ const data=await request('login',{method:'POST',body:{username,password}}); setUserToken(data.token||''); return data; }
+  async function listStates(){ return (await request('states',{adminAuth:true})).states || []; }
+  async function listUsers(){ return (await request('users',{adminAuth:true})).users || []; }
+  async function syncUsers(users){ return request('sync-users',{method:'POST',adminAuth:true,body:{users}}); }
+  async function saveUser(user,originalUsername){ return request('user',{method:'POST',adminAuth:true,body:{user,originalUsername}}); }
+  async function setUserStatus(username,status){ return request('user-status',{method:'POST',adminAuth:true,body:{username,status}}); }
+  async function health(){ return request('health'); }
+  return {request,login,listStates,listUsers,syncUsers,saveUser,setUserStatus,health,setUserToken,clearUserToken,hasUserToken,setAdminSecret,getAdminSecret,clearAdminSecret};
+})();
 
 const Persistence = (function () {
   const LOCAL_PREFIX = 'appState:';
-
-  function localKey(username) {
-    return LOCAL_PREFIX + username;
+  function localKey(username){ return LOCAL_PREFIX+username; }
+  function readLocal(username){
+    try{ const raw=localStorage.getItem(localKey(username)); return raw?JSON.parse(raw):null; }
+    catch(e){ console.warn('Persistence: failed to read local cache',e); return null; }
   }
-
-  function readLocal(username) {
-    try {
-      const raw = localStorage.getItem(localKey(username));
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      console.warn('Persistence: failed to read local cache', e);
-      return null;
+  function writeLocal(username,state){
+    try{ localStorage.setItem(localKey(username),JSON.stringify(state)); }
+    catch(e){ console.warn('Persistence: failed to write local cache',e); }
+  }
+  async function getRemote(username){
+    try{ const data=await RemoteCentral.request('state',{userAuth:true,params:{username}}); return data && data.state ? data.state : null; }
+    catch(e){ if(e && e.status===404) return null; throw e; }
+  }
+  async function putRemote(username,state){
+    return RemoteCentral.request('state',{method:'PUT',userAuth:true,params:{username},body:{state}});
+  }
+  async function migrateLocalIfNeeded(username){
+    const local=readLocal(username);
+    if(!local || !PERSISTENCE_CONFIG.API_BASE_URL || !RemoteCentral.hasUserToken()) return {migrated:false,local};
+    const remote=await getRemote(username);
+    if(remote) return {migrated:false,local,remote};
+    await putRemote(username,local);
+    return {migrated:true,local,remote:null};
+  }
+  async function loadState(username){
+    const local=readLocal(username);
+    if(PERSISTENCE_CONFIG.API_BASE_URL && RemoteCentral.hasUserToken()){
+      try{
+        let remote=await getRemote(username);
+        if(!remote && local){ await putRemote(username,local); remote=local; }
+        if(remote){ writeLocal(username,remote); return remote; }
+      }catch(e){ console.warn('Persistence: central load failed; local cache preserved',e); }
+    }
+    return local;
+  }
+  function saveState(username,state){
+    const enriched={...state,_syncMeta:{...(state?._syncMeta||{}),lastModifiedAt:new Date().toISOString()}};
+    writeLocal(username,enriched);
+    if(PERSISTENCE_CONFIG.API_BASE_URL && RemoteCentral.hasUserToken()){
+      putRemote(username,enriched).catch(e=>console.warn('Persistence: central sync failed; local cache preserved',e));
     }
   }
-
-  function writeLocal(username, state) {
-    try {
-      localStorage.setItem(localKey(username), JSON.stringify(state));
-    } catch (e) {
-      console.warn('Persistence: failed to write local cache', e);
-    }
+  function flushOnUnload(username,state){
+    const enriched={...state,_syncMeta:{...(state?._syncMeta||{}),lastModifiedAt:new Date().toISOString()}};
+    writeLocal(username,enriched);
+    // La aplicación ya sincroniza cada cambio durante el uso. En unload conservamos
+    // siempre la última copia local para una recuperación posterior si la red falla.
   }
-
-  function apiUrl(username) {
-    return `${PERSISTENCE_CONFIG.API_BASE_URL}/state/${encodeURIComponent(username)}`;
-  }
-
-  async function fetchWithTimeout(url, options) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), PERSISTENCE_CONFIG.REQUEST_TIMEOUT_MS);
-    try {
-      return await fetch(url, { ...options, signal: controller.signal });
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  // Load a user's state. Tries the server first (if configured), and falls
-  // back to the local cache if that's unavailable or the server has
-  // nothing saved yet. Returns null if there is no saved state anywhere
-  // (i.e. this is a brand new user).
-  async function loadState(username) {
-    if (PERSISTENCE_CONFIG.API_BASE_URL) {
-      try {
-        const res = await fetchWithTimeout(apiUrl(username), { method: 'GET' });
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.state) {
-            writeLocal(username, data.state); // keep local cache warm/offline-ready
-            return data.state;
-          }
-        }
-        // Non-2xx (e.g. 404 = no saved state yet server-side): fall through
-        // to the local cache below rather than treating it as "new user"
-        // outright, in case there's an un-synced local copy.
-      } catch (e) {
-        console.warn('Persistence: server load failed, using local cache', e);
-      }
-    }
-    return readLocal(username);
-  }
-
-  // Save a user's state. Always writes to the local cache immediately
-  // (synchronous-feeling, never fails silently in a way that loses data on
-  // this device), then best-effort syncs to the server in the background.
-  function saveState(username, state) {
-    writeLocal(username, state);
-    if (PERSISTENCE_CONFIG.API_BASE_URL) {
-      fetchWithTimeout(apiUrl(username), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state }),
-      }).catch((e) => {
-        console.warn('Persistence: background sync to server failed (local cache still saved)', e);
-      });
-    }
-  }
-
-  // Best-effort flush used on page unload so the last update isn't lost in
-  // transit. Uses sendBeacon when available since it survives page close.
-  // Note: sendBeacon always sends a POST, so if you implement the save
-  // endpoint, accepting POST as an alias for PUT on that same route covers
-  // this case too (or it's fine to skip — writeLocal() below already keeps
-  // the local cache current, so the previous PUT is at worst a few
-  // interactions behind).
-  function flushOnUnload(username, state) {
-    writeLocal(username, state);
-    if (!PERSISTENCE_CONFIG.API_BASE_URL) return;
-    try {
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify({ state })], { type: 'application/json' });
-        navigator.sendBeacon(apiUrl(username), blob);
-      }
-    } catch (e) {
-      // best-effort only
-    }
-  }
-
-  return { loadState, saveState, flushOnUnload };
+  return { loadState, saveState, flushOnUnload, migrateLocalIfNeeded, readLocal };
 })();
 
 </script>
@@ -1889,36 +1959,50 @@ function getLoans(){
 
 // ─── Login and logout functions ───────────────────────────────────────────────
 async function doLogin(){
-  const u=document.getElementById('inp-u').value;
+  const u=document.getElementById('inp-u').value.trim();
   const p=document.getElementById('inp-p').value;
   const err=document.getElementById('lerr');
-  const found=USERS.find(x=>x.username===u&&x.pass===p);
-  if(!found){err.classList.add('show');['inp-u','inp-p'].forEach(id=>document.getElementById(id).classList.add('err'));return;}
-  err.classList.remove('show');['inp-u','inp-p'].forEach(id=>document.getElementById(id).classList.remove('err'));
-  U=found;
-
   const loginBtn=document.querySelector('#s-login .btn-p');
   if(loginBtn){loginBtn.disabled=true;loginBtn.textContent='Ingresando...';}
-
-  // Recover this user's previously saved progress, if any (works locally
-  // via a browser cache and, once the backend is connected, across
-  // devices/sessions too — see persistence.js).
-  let saved=null;
-  try{ saved = await Persistence.loadState(u); } catch(e){ console.warn('Could not load saved state', e); }
-
-  state = saved ? { ...defaultState(), ...saved } : defaultState();
-  state.user = u;
-  state.institutionName = U.institutionName;
-  state.sessionGroup = state.sessionGroup ?? assignSessionGroup();
-  saveState();
-
-  if(loginBtn){loginBtn.disabled=false;loginBtn.textContent='Ingresar →';}
-
-  initBalance();renderBalanceDisplay();
-  document.getElementById('mkt-title').innerHTML =
-    `<div class="brand-h1"><b>Valoración de herramientas de trazabilidad agrícola</b></div>
-    <div class="brand-h1-sub"><b>Convirtiendo la Información en <b>Garantía</b></b></div>`;
-  showContext();show('s-market');
+  try{
+    let found=null;
+    if(PERSISTENCE_CONFIG.API_BASE_URL && window.location.protocol!=='file:'){
+      let auth;
+      try{ auth=await RemoteCentral.login(u,p); }
+      catch(e){
+        console.warn('Central login failed',e);
+        err.textContent=(e&&e.status===403)?'Usuario deshabilitado.':(e&&e.status===401)?'Credenciales incorrectas. Intente de nuevo.':'No fue posible conectar con el servidor central. Intente nuevamente.';
+        throw e;
+      }
+      found={...auth.user,pass:p};
+      const idx=USERS.findIndex(x=>x.username===u);
+      if(idx>=0) USERS.splice(idx,1,{...USERS[idx],...found}); else USERS.push(found);
+    }else{
+      loadManagedUserCatalog();
+      const disabledUsers=loadDisabledUserSet();
+      const account=USERS.find(x=>x.username===u);
+      const isDisabled=!!account && ((account.status ?? 'active')==='disabled' || disabledUsers.has(u) || RUNTIME_DISABLED_USERS.has(u));
+      found=!isDisabled && account && account.pass===p ? account : null;
+      if(!found) throw Object.assign(new Error('invalid-local-credentials'),{status:401});
+    }
+    err.classList.remove('show');['inp-u','inp-p'].forEach(id=>document.getElementById(id).classList.remove('err'));
+    U=found;
+    try{ await Persistence.migrateLocalIfNeeded(u); }catch(e){ console.warn('Local recovery could not complete yet',e); }
+    let saved=null;
+    try{ saved=await Persistence.loadState(u); }catch(e){ console.warn('Could not load saved state',e); }
+    state=saved?{...defaultState(),...saved}:defaultState();
+    state.user=u;
+    state.institutionName=U.institutionName;
+    state.sessionGroup=Number(U.grupoId)||assignSessionGroup();
+    saveState();
+    initBalance();renderBalanceDisplay();
+    document.getElementById('mkt-title').innerHTML=`<div class="brand-h1"><b>Valoración de herramientas de trazabilidad agrícola</b></div><div class="brand-h1-sub"><b>Convirtiendo la Información en <b>Garantía</b></b></div>`;
+    showContext();show('s-market');
+  }catch(e){
+    err.classList.add('show');['inp-u','inp-p'].forEach(id=>document.getElementById(id).classList.add('err'));
+  }finally{
+    if(loginBtn){loginBtn.disabled=false;loginBtn.textContent='Ingresar →';}
+  }
 }
 
 function doLogout(){
@@ -1928,6 +2012,7 @@ function doLogout(){
   // memory for the current browser session so the login screen is blank
   // and a different user logging in on this device doesn't see it.
   U=null;
+  RemoteCentral.clearUserToken();
   purchases={};
   yesSelections={};
   state = defaultState();
@@ -2893,6 +2978,1708 @@ JSON.stringify(state)
 
 document.getElementById('inp-p').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('inp-u').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+</script>
+
+<!-- Módulo aislado de reportería: se activa con /report en web o #report al abrir el HTML localmente -->
+<script>
+(function DIGINReportingModule(){
+  'use strict';
+
+  const reportPath = ((window.location.pathname || '/').replace(/\/+$/, '') || '/').toLowerCase();
+  const reportHash = (window.location.hash || '').toLowerCase();
+  const isPublishedReportRoute = reportPath.endsWith('/report') || reportPath.endsWith('/report/index.html');
+  const isDirectFile = window.location.protocol === 'file:';
+  const isDirectFileReport = isDirectFile && reportHash === '#report';
+  if(isDirectFile) window.addEventListener('hashchange', () => window.location.reload());
+  if(!isPublishedReportRoute && !isDirectFileReport) return;
+
+  const ADMIN_USERNAME = 'ADMIN';
+  const ADMIN_PASSWORD_SHA256 = 'd5dd7e2ef7dc071791488e082a05e16130e8366419191c5da1eea3e2ae84000b';
+  const AUTH_SESSION_KEY = 'digin:report:authenticated';
+  const EXCLUDED_REPORT_USERS = new Set(['1','2','3','banco@lafise.hn','gestor@cofemarcala.hn','oficial@odef.hn']);
+  const REPORT_COLUMNS = [
+    'user',
+    'institutionName',
+    'sessionGroup',
+    'walletBalance',
+    'sociodemographicQuestionsCompleted',
+    'sociodemographicQuestions.ageRange',
+    'sociodemographicQuestions.agrExperienceYears',
+    'sociodemographicQuestions.experienceYears',
+    'sociodemographicQuestions.institutionType',
+    'sociodemographicQuestions.institutionOther',
+    'sociodemographicQuestions.institutionRole',
+    'sociodemographicQuestions.roleOther',
+    'sociodemographicQuestions.sex',
+    'perceptionQuestionsCompleted',
+    'perceptionQuestions.interestingCredits',
+    'perceptionQuestions.solvesNeed',
+    'perceptionQuestions.monthlyWtp',
+    'perceptionQuestions.conditionsToWtp',
+    'perceptionQuestions.frecuency',
+    'perceptionQuestions.alerts',
+    'testViewed',
+    'testConfirmedAccess',
+    'testOffers',
+    'WTPviewed',
+    'WTPdismissedLoans',
+    'WTPconfirmedAccess',
+    'WTPnotInterested'
+  ];
+
+  // Usuarios oficiales del experimento (se mantienen separados para el conteo/base de prueba).
+  const registeredUsers = USERS.filter(user => !EXCLUDED_REPORT_USERS.has(user.username) && (user.status ?? 'active') === 'active');
+  // Para la lectura real no ignoramos estados guardados de cuentas de prueba: si una cuenta
+  // tiene datos persistidos, reportería debe poder verlos. Esto permite validar localmente
+  // el módulo sin que los resultados aparezcan en cero.
+  const knownReportUsers = [...USERS];
+  const allDceLoans = [...LOANS_BANCO, ...LOANS_COOP, ...LOANS_GRUPO];
+  const allTestLoans = [...LOANS_BANCO_TEST, ...LOANS_COOP_TEST, ...LOANS_GRUPO_TEST];
+  const loanById = new Map(allDceLoans.map(loan => [loan.id, loan]));
+  let realRecords = [];
+  let demoRecords = [];
+  let reportMode = 'real';
+  let isLoading = false;
+  let editingUsername = null;
+
+  document.title = 'Reportería DIG-IN';
+  renderShell();
+  bindStaticEvents();
+
+  if(readSessionAuth()){
+    showDashboard();
+  } else {
+    showLogin();
+  }
+
+  function renderShell(){
+    const style = document.createElement('style');
+    style.id = 'rp-styles';
+    style.textContent = `
+      html,body{min-height:100%;background:#f7f8fa;color:#111827;font-family:'IBM Plex Sans',Arial,sans-serif}
+      body{margin:0}
+      .rp-hidden{display:none!important}
+      .rp-shell{min-height:100vh;background:#f7f8fa}
+      .rp-topbar{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:#fff;border-bottom:1px solid #e2e5ea;position:sticky;top:0;z-index:20}
+      .rp-brand{display:flex;align-items:center;gap:13px}
+      .rp-mark{width:34px;height:34px;border-radius:9px;background:#059669;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:.5px}
+      .rp-brand-title{font-size:14px;font-weight:600;color:#111827}
+      .rp-brand-sub{font-size:10px;color:#6b7280;font-family:'IBM Plex Mono',monospace;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
+      .rp-top-actions{display:flex;align-items:center;gap:10px}
+      .rp-admin-pill{font-size:10px;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:999px;padding:5px 10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.6px}
+      .rp-link-btn{border:0;background:transparent;color:#6b7280;font:500 12px 'IBM Plex Sans',Arial,sans-serif;cursor:pointer;padding:7px 8px}
+      .rp-link-btn:hover{color:#dc2626}
+      .rp-login-wrap{min-height:calc(100vh - 64px);display:grid;place-items:center;padding:32px 16px}
+      .rp-login-card{width:min(430px,100%);background:#fff;border:1px solid #e2e5ea;border-radius:14px;padding:30px;box-shadow:0 10px 30px rgba(17,24,39,.06)}
+      .rp-eyebrow{font:500 10px 'IBM Plex Mono',monospace;color:#059669;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
+      .rp-login-card h1{font-size:24px;font-weight:500;margin:0 0 8px;color:#111827}
+      .rp-login-card>p{font-size:13px;line-height:1.6;color:#6b7280;margin:0 0 24px}
+      .rp-field{margin-bottom:14px}
+      .rp-label{display:block;font:500 10px 'IBM Plex Mono',monospace;color:#374151;letter-spacing:.9px;text-transform:uppercase;margin-bottom:6px}
+      .rp-input,.rp-select{width:100%;height:42px;border:1px solid #d0d4db;border-radius:8px;background:#f9fafb;color:#111827;padding:0 12px;font:400 13px 'IBM Plex Sans',Arial,sans-serif;outline:none}
+      .rp-input:focus,.rp-select:focus{border-color:#059669;background:#fff;box-shadow:0 0 0 3px rgba(5,150,105,.1)}
+      .rp-password-wrap{position:relative}
+      .rp-password-wrap .rp-input{padding-right:72px}
+      .rp-show-pass{position:absolute;right:7px;top:6px;height:30px;border:0;background:transparent;color:#6b7280;font-size:11px;cursor:pointer;padding:0 7px}
+      .rp-primary,.rp-secondary,.rp-danger{border-radius:8px;padding:10px 15px;font:500 12px 'IBM Plex Sans',Arial,sans-serif;cursor:pointer;transition:.15s;white-space:nowrap}
+      .rp-primary{border:1px solid #059669;background:#059669;color:#fff}
+      .rp-primary:hover{background:#047857;border-color:#047857}
+      .rp-secondary{border:1px solid #d0d4db;background:#fff;color:#374151}
+      .rp-secondary:hover{border-color:#059669;color:#047857}
+      .rp-danger{border:1px solid #fecaca;background:#fff;color:#dc2626}
+      .rp-login-submit{width:100%;margin-top:5px;height:43px}
+      button:disabled{cursor:not-allowed!important;opacity:.55}
+      .rp-error{display:none;margin:0 0 14px;padding:10px 11px;border-radius:7px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;font-size:12px;line-height:1.4}
+      .rp-error.show{display:block}
+      .rp-login-note{font-size:10px;color:#9ca3af;text-align:center;margin-top:18px;line-height:1.5}
+      .rp-main{max-width:1440px;margin:0 auto;padding:24px 26px 38px}
+      .rp-page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+      .rp-page-head h1{font-size:23px;font-weight:500;margin:0 0 5px;color:#111827}
+      .rp-page-head p{font-size:12px;color:#6b7280;margin:0}
+      .rp-mode{font:500 10px 'IBM Plex Mono',monospace;border-radius:999px;padding:6px 10px;letter-spacing:.5px;white-space:nowrap}
+      .rp-mode.real{background:#ecfdf5;border:1px solid #a7f3d0;color:#047857}
+      .rp-mode.demo{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
+      .rp-notice{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border-radius:9px;margin-bottom:16px;font-size:11px;line-height:1.55}
+      .rp-notice.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+      .rp-notice.warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
+      .rp-toolbar{display:grid;grid-template-columns:minmax(210px,1.4fr) repeat(3,minmax(145px,.65fr)) auto;gap:9px;align-items:center;margin-bottom:14px}
+      .rp-toolbar .rp-input,.rp-toolbar .rp-select{height:39px;background:#fff}
+      .rp-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-bottom:18px}
+      .rp-kpis{display:grid;grid-template-columns:repeat(6,minmax(135px,1fr));gap:10px;margin-bottom:18px}
+      .rp-kpi{background:#fff;border:1px solid #e2e5ea;border-radius:10px;padding:14px 15px;min-height:88px}
+      .rp-kpi-label{font:500 9px 'IBM Plex Mono',monospace;color:#6b7280;letter-spacing:.7px;text-transform:uppercase;line-height:1.4;min-height:26px}
+      .rp-kpi-value{font-size:25px;font-weight:500;color:#111827;margin-top:5px;line-height:1}
+      .rp-kpi-note{font-size:10px;color:#9ca3af;margin-top:6px}
+      .rp-grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.55fr);gap:14px;margin-bottom:14px}
+      .rp-panel{background:#fff;border:1px solid #e2e5ea;border-radius:11px;overflow:hidden}
+      .rp-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid #e2e5ea}
+      .rp-panel-title{font-size:13px;font-weight:600;color:#111827}
+      .rp-panel-meta{font-size:10px;color:#9ca3af;font-family:'IBM Plex Mono',monospace}
+      .rp-progress-body{padding:16px}
+      .rp-progress-row{margin-bottom:15px}
+      .rp-progress-row:last-child{margin-bottom:0}
+      .rp-progress-label{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#4b5563;margin-bottom:6px}
+      .rp-progress-track{height:8px;border-radius:999px;background:#eef0f3;overflow:hidden}
+      .rp-progress-fill{height:100%;border-radius:999px;background:#059669;min-width:0}
+      .rp-progress-fill.blue{background:#1d4ed8}.rp-progress-fill.gold{background:#d97706}
+      .rp-table-wrap{overflow:auto;max-width:100%}
+      .rp-table{width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap}
+      .rp-table th{position:sticky;top:0;background:#f3f4f6;color:#4b5563;font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.4px;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:1px solid #d1d5db;z-index:1}
+      .rp-table td{padding:9px 10px;border-bottom:1px solid #eef0f3;color:#374151;vertical-align:middle}
+      .rp-table tbody tr:hover{background:#f9fafb}
+      .rp-table tbody tr:last-child td{border-bottom:0}
+      .rp-cell-main{font-weight:500;color:#111827}.rp-cell-sub{font-size:9px;color:#9ca3af;margin-top:2px}
+      .rp-status{display:inline-flex;align-items:center;border-radius:999px;padding:3px 7px;font-size:9px;font-weight:600}
+      .rp-status.complete{background:#ecfdf5;color:#047857}.rp-status.progress{background:#eff6ff;color:#1d4ed8}.rp-status.pending{background:#f3f4f6;color:#6b7280}
+      .rp-yes{color:#047857;font-weight:600}.rp-no{color:#9ca3af}
+      .rp-empty{padding:34px 18px;text-align:center;color:#6b7280;font-size:12px;line-height:1.6}
+      .rp-combo-panel{margin-top:14px}
+      .rp-combo-table th:not(:first-child),.rp-combo-table td:not(:first-child){text-align:center}
+      .rp-combo-name{text-align:left!important;white-space:normal;min-width:210px}
+      .rp-combo-code{display:inline-block;font:500 9px 'IBM Plex Mono',monospace;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:4px;padding:2px 5px;margin-right:6px}
+      .rp-catalog-wrap{max-height:460px;overflow:auto}
+      .rp-catalog-table th,.rp-catalog-table td{text-align:center}
+      .rp-catalog-table th:first-child,.rp-catalog-table td:first-child{text-align:left}
+      .rp-catalog-id{font:600 10px 'IBM Plex Mono',monospace;color:#047857}
+      .rp-footer-note{font-size:10px;color:#9ca3af;line-height:1.5;padding:11px 16px;border-top:1px solid #eef0f3;background:#fafafa}
+      .rp-section-tabs{display:flex;gap:7px;margin:-2px 0 18px;border-bottom:1px solid #dfe3e8;padding-bottom:10px}
+      .rp-section-tab{border:1px solid #d0d4db;background:#fff;color:#4b5563;border-radius:8px;padding:9px 15px;font:500 12px 'IBM Plex Sans',Arial,sans-serif;cursor:pointer}
+      .rp-section-tab:hover{border-color:#059669;color:#047857}
+      .rp-section-tab.active{background:#059669;border-color:#059669;color:#fff}
+      .rp-user-layout{display:grid;grid-template-columns:minmax(300px,.7fr) minmax(0,1.6fr);gap:14px;align-items:start}
+      .rp-user-form-body{padding:17px}
+      .rp-user-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+      .rp-user-form-grid .rp-field{margin:0}
+      .rp-user-form-grid .rp-full{grid-column:1/-1}
+      .rp-user-password-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+      .rp-user-password-row .rp-input{min-width:0}
+      .rp-user-form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+      .rp-user-message{display:none;margin-bottom:14px;padding:9px 11px;border-radius:7px;font-size:11px;line-height:1.4}
+      .rp-user-message.show{display:block}
+      .rp-user-message.ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#047857}
+      .rp-user-message.error{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c}
+      .rp-user-table .rp-user-pass{font-family:'IBM Plex Mono',monospace;color:#374151}
+      .rp-user-table .rp-user-actions{display:flex;gap:6px;justify-content:flex-end}
+      .rp-mini-btn{border:1px solid #d0d4db;background:#fff;color:#374151;border-radius:6px;padding:5px 8px;font:500 10px 'IBM Plex Sans',Arial,sans-serif;cursor:pointer}
+      .rp-mini-btn:hover{border-color:#059669;color:#047857}
+      .rp-mini-btn.danger{border-color:#fecaca;color:#dc2626}
+      .rp-mini-btn.danger:hover{background:#fef2f2}
+      .rp-mini-btn.warn{border-color:#fcd34d;color:#92400e;background:#fffbeb}
+      .rp-mini-btn.warn:hover{background:#fef3c7}
+      .rp-mini-btn.success{border-color:#a7f3d0;color:#047857;background:#ecfdf5}
+      .rp-mini-btn.success:hover{background:#d1fae5}
+      .rp-user-status{display:inline-block;border-radius:999px;padding:3px 8px;font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.4px;text-transform:uppercase}
+      .rp-user-status.active{background:#ecfdf5;border:1px solid #a7f3d0;color:#047857}
+      .rp-user-status.disabled{background:#f3f4f6;border:1px solid #d1d5db;color:#6b7280}
+      .rp-users-stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+      .rp-user-note{font-size:10px;color:#6b7280;line-height:1.5;margin-top:11px}
+      .rp-spinner{width:15px;height:15px;border:2px solid #a7f3d0;border-top-color:#059669;border-radius:50%;display:inline-block;animation:rp-spin .7s linear infinite;vertical-align:-3px;margin-right:7px}
+      @keyframes rp-spin{to{transform:rotate(360deg)}}
+      @media(max-width:1100px){.rp-kpis{grid-template-columns:repeat(3,1fr)}.rp-toolbar{grid-template-columns:1fr 1fr}.rp-toolbar>*:first-child{grid-column:1/-1}.rp-grid{grid-template-columns:1fr}.rp-user-layout{grid-template-columns:1fr}}
+      @media(max-width:680px){.rp-topbar{padding:0 15px}.rp-main{padding:18px 12px 28px}.rp-brand-sub{display:none}.rp-admin-pill{display:none}.rp-page-head{flex-direction:column}.rp-toolbar{grid-template-columns:1fr}.rp-toolbar>*:first-child{grid-column:auto}.rp-kpis{grid-template-columns:repeat(2,1fr)}.rp-actions{justify-content:stretch}.rp-actions button{flex:1}.rp-login-card{padding:24px 19px}.rp-user-form-grid{grid-template-columns:1fr}.rp-user-form-grid .rp-full{grid-column:auto}.rp-section-tabs{overflow:auto}}
+      @media print{.rp-topbar,.rp-toolbar,.rp-actions,.rp-notice{display:none!important}.rp-main{padding:0}.rp-panel{break-inside:avoid}.rp-shell{background:#fff}}
+    `;
+    document.head.appendChild(style);
+    document.body.innerHTML = `
+      <div class="rp-shell">
+        <header class="rp-topbar">
+          <div class="rp-brand">
+            <div class="rp-mark">DI</div>
+            <div><div class="rp-brand-title">DIG-IN Reportería</div><div class="rp-brand-sub">Convirtiendo la información en garantía</div></div>
+          </div>
+          <div class="rp-top-actions">
+            <span class="rp-admin-pill rp-hidden" id="rp-admin-pill">ADMINISTRADOR</span>
+            <button class="rp-link-btn rp-hidden" id="rp-logout" type="button">Cerrar sesión</button>
+          </div>
+        </header>
+
+        <section class="rp-login-wrap" id="rp-login-view">
+          <form class="rp-login-card" id="rp-login-form" autocomplete="off">
+            <div class="rp-eyebrow">Acceso restringido</div>
+            <h1>Módulo de reportería</h1>
+            <p>Ingrese las credenciales administrativas para consultar y exportar los resultados del experimento.</p>
+            <div class="rp-error" id="rp-login-error" role="alert">Usuario o contraseña incorrectos.</div>
+            <div class="rp-field">
+              <label class="rp-label" for="rp-username">Usuario</label>
+              <input class="rp-input" id="rp-username" name="username" type="text" autocapitalize="characters" spellcheck="false" required>
+            </div>
+            <div class="rp-field">
+              <label class="rp-label" for="rp-password">Contraseña</label>
+              <div class="rp-password-wrap">
+                <input class="rp-input" id="rp-password" name="password" type="password" required>
+                <button class="rp-show-pass" id="rp-show-pass" type="button">Mostrar</button>
+              </div>
+            </div>
+            <button class="rp-primary rp-login-submit" id="rp-login-submit" type="submit">Ingresar</button>
+            <div class="rp-login-note">La sesión administrativa se mantiene únicamente en esta pestaña.</div>
+          </form>
+        </section>
+
+        <main class="rp-main rp-hidden" id="rp-dashboard-view">
+          <div class="rp-page-head">
+            <div><div class="rp-eyebrow">Administración</div><h1 id="rp-section-title">Reporte consolidado</h1><p id="rp-report-subtitle">Resultados almacenados por la aplicación</p></div>
+            <span class="rp-mode real" id="rp-mode-badge">DATOS REALES</span>
+          </div>
+          <div class="rp-section-tabs">
+            <button class="rp-section-tab active" id="rp-tab-reports" type="button">Reportes</button>
+            <button class="rp-section-tab" id="rp-tab-users" type="button">Usuarios</button>
+          </div>
+
+          <div id="rp-reports-section">
+          <div class="rp-notice info" id="rp-source-notice" style="display:none"></div>
+
+          <div class="rp-toolbar">
+            <input class="rp-input" id="rp-search" type="search" placeholder="Buscar usuario o institución...">
+            <select class="rp-select" id="rp-institution-filter"><option value="">Todas las instituciones</option></select>
+            <select class="rp-select" id="rp-group-filter"><option value="">Todos los grupos</option><option value="1">Grupo 1</option><option value="2">Grupo 2</option><option value="3">Grupo 3</option><option value="4">Grupo 4</option><option value="5">Grupo 5</option><option value="6">Grupo 6</option><option value="7">Grupo 7</option></select>
+            <select class="rp-select" id="rp-status-filter"><option value="">Todos los estados</option><option value="complete">Completado</option><option value="progress">En progreso</option><option value="pending">Solo inicio</option></select>
+            <button class="rp-secondary" id="rp-clear-filters" type="button">Limpiar filtros</button>
+          </div>
+
+          <div class="rp-actions">
+            <button class="rp-secondary" id="rp-demo-toggle" type="button">Ver datos de prueba</button>
+            <button class="rp-secondary" id="rp-refresh" type="button">Actualizar datos</button>
+            <button class="rp-primary" id="rp-export-excel" type="button">Excel detalle</button>
+            <button class="rp-primary" id="rp-export-users" type="button">Consolidado usuarios</button>
+            <button class="rp-primary" id="rp-export-combos-excel" type="button">Excel combinaciones</button>
+            <button class="rp-primary" id="rp-export-pdf" type="button">PDF combinaciones + 504</button>
+          </div>
+
+          <section class="rp-kpis" id="rp-kpis"></section>
+
+          <div class="rp-grid">
+            <section class="rp-panel">
+              <div class="rp-panel-head"><div class="rp-panel-title">Avance de participación</div><div class="rp-panel-meta" id="rp-progress-meta"></div></div>
+              <div class="rp-progress-body" id="rp-progress"></div>
+            </section>
+            <section class="rp-panel">
+              <div class="rp-panel-head"><div class="rp-panel-title">Participantes</div><div class="rp-panel-meta" id="rp-participant-count"></div></div>
+              <div class="rp-table-wrap" style="max-height:310px">
+                <table class="rp-table"><thead><tr><th>Usuario</th><th>Institución</th><th>Grupo</th><th>Estado</th><th>Saldo</th><th>WTP mensual</th><th>Decisiones</th><th>Accesos</th></tr></thead><tbody id="rp-participant-body"></tbody></table>
+              </div>
+              <div class="rp-empty rp-hidden" id="rp-participant-empty">No hay registros que coincidan con los filtros seleccionados.</div>
+            </section>
+          </div>
+
+          <section class="rp-panel rp-combo-panel">
+            <div class="rp-panel-head"><div><div class="rp-panel-title">Resumen agrupado de combinaciones</div></div><div class="rp-panel-meta" id="rp-combo-count"></div></div>
+            <div class="rp-table-wrap">
+              <table class="rp-table rp-combo-table"><thead><tr><th>Nombre de la combinación</th><th>Fundamentales</th><th>aCLIMAtar</th><th>Whisp</th><th>Precio</th><th>Total asignado</th><th>Vistas</th><th>Confirmadas</th><th>No interesa</th><th>Total decisiones</th><th>Aceptación</th></tr></thead><tbody id="rp-combo-body"></tbody></table>
+            </div>
+            
+          </section>
+
+          <section class="rp-panel rp-combo-panel">
+            <div class="rp-panel-head"><div><div class="rp-panel-title">Combinaciones del experimento</div></div><div class="rp-panel-meta" id="rp-catalog-count"></div></div>
+            <div class="rp-catalog-wrap">
+              <table class="rp-table rp-catalog-table"><thead><tr><th>ID</th><th>Perfil</th><th>Acopio</th><th>Monto productores</th><th>N.º productores</th><th>Paquete flexible</th><th>Fundamentales</th><th>aCLIMAtar</th><th>Whisp</th><th>Precio</th><th>Asignado</th><th>Vistas</th><th>Confirmadas</th><th>No interesa</th><th>Decisiones</th></tr></thead><tbody id="rp-catalog-body"></tbody></table>
+            </div>
+            
+          </section>
+          </div>
+
+          <section id="rp-users-section" class="rp-hidden">
+            <div class="rp-user-layout">
+              <section class="rp-panel">
+                <div class="rp-panel-head"><div><div class="rp-panel-title" id="rp-user-form-title">Agregar usuario</div></div></div>
+                <form class="rp-user-form-body" id="rp-user-form" autocomplete="off">
+                  <div class="rp-user-message" id="rp-user-message"></div>
+                  <div class="rp-user-form-grid">
+                    <div class="rp-field rp-full"><label class="rp-label" for="rp-user-username">Nombre de usuario</label><input class="rp-input" id="rp-user-username" type="text" required spellcheck="false"></div>
+                    <div class="rp-field rp-full"><label class="rp-label" for="rp-user-password">Password</label><div class="rp-user-password-row"><input class="rp-input" id="rp-user-password" type="text" required spellcheck="false"><button class="rp-secondary" id="rp-generate-password" type="button">Generar</button></div></div>
+                    <div class="rp-field"><label class="rp-label" for="rp-user-role">Role</label><select class="rp-select" id="rp-user-role" required><option value="">Seleccionar...</option><option value="banco">Banco</option><option value="coop">Cooperativa</option><option value="imf">Microfinanciera</option></select></div>
+                    <div class="rp-field"><label class="rp-label" for="rp-user-group">Grupo</label><select class="rp-select" id="rp-user-group" required><option value="">Seleccionar...</option><option value="1">Grupo 1</option><option value="2">Grupo 2</option><option value="3">Grupo 3</option><option value="4">Grupo 4</option><option value="5">Grupo 5</option><option value="6">Grupo 6</option><option value="7">Grupo 7</option></select></div>
+                    <div class="rp-field rp-full"><label class="rp-label" for="rp-user-institution">Nombre de institución</label><input class="rp-input" id="rp-user-institution" type="text" required></div>
+                  </div>
+                  <div class="rp-user-form-actions"><button class="rp-secondary rp-hidden" id="rp-user-cancel" type="button">Cancelar edición</button><button class="rp-primary" id="rp-user-save" type="submit">Agregar usuario</button></div>
+                </form>
+              </section>
+
+              <div class="rp-users-stack">
+                <section class="rp-panel">
+                  <div class="rp-panel-head"><div class="rp-panel-title">Usuarios activos</div><div style="display:flex;align-items:center;gap:9px"><div class="rp-panel-meta" id="rp-user-count"></div><button class="rp-primary" id="rp-export-active-users" type="button">Excel usuarios activos</button></div></div>
+                  <div class="rp-table-wrap" style="max-height:470px">
+                    <table class="rp-table rp-user-table"><thead><tr><th>Usuario</th><th>Password</th><th>Role</th><th>Institución</th><th>Grupo</th><th>Estado</th><th style="text-align:right">Acciones</th></tr></thead><tbody id="rp-user-body"></tbody></table>
+                  </div>
+                  <div class="rp-empty rp-hidden" id="rp-user-empty">No hay usuarios activos.</div>
+                </section>
+
+                <section class="rp-panel">
+                  <div class="rp-panel-head"><div><div class="rp-panel-title">Eliminados / deshabilitados</div><div class="rp-panel-meta">Se conservan para mantener la trazabilidad</div></div><div class="rp-panel-meta" id="rp-user-disabled-count"></div></div>
+                  <div class="rp-table-wrap" style="max-height:330px">
+                    <table class="rp-table rp-user-table"><thead><tr><th>Usuario</th><th>Password</th><th>Role</th><th>Institución</th><th>Grupo</th><th>Estado</th><th style="text-align:right">Acciones</th></tr></thead><tbody id="rp-user-disabled-body"></tbody></table>
+                  </div>
+                  <div class="rp-empty rp-hidden" id="rp-user-disabled-empty">No hay usuarios deshabilitados.</div>
+                </section>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>`;
+  }
+
+  function bindStaticEvents(){
+    byId('rp-login-form').addEventListener('submit', handleLogin);
+    byId('rp-show-pass').addEventListener('click', () => {
+      const input = byId('rp-password');
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      byId('rp-show-pass').textContent = showing ? 'Mostrar' : 'Ocultar';
+    });
+    byId('rp-logout').addEventListener('click', logoutReport);
+    byId('rp-refresh').addEventListener('click', () => loadRealRecords(true));
+    byId('rp-demo-toggle').addEventListener('click', toggleDemoMode);
+    byId('rp-clear-filters').addEventListener('click', clearFilters);
+    byId('rp-export-excel').addEventListener('click', exportExcelReport);
+    byId('rp-export-users').addEventListener('click', exportUserSummaryReport);
+    byId('rp-export-combos-excel').addEventListener('click', exportCombinationExcel);
+    byId('rp-export-pdf').addEventListener('click', exportCombinationPdf);
+    byId('rp-tab-reports').addEventListener('click', () => switchAdminSection('reports'));
+    byId('rp-tab-users').addEventListener('click', () => switchAdminSection('users'));
+    byId('rp-user-form').addEventListener('submit', saveManagedUser);
+    byId('rp-generate-password').addEventListener('click', () => { byId('rp-user-password').value = generateRandomPassword(); });
+    byId('rp-user-cancel').addEventListener('click', resetUserForm);
+    byId('rp-user-body').addEventListener('click', handleUserTableAction);
+    byId('rp-user-disabled-body').addEventListener('click', handleUserTableAction);
+    byId('rp-export-active-users').addEventListener('click', exportActiveUsersExcel);
+    ['rp-search','rp-institution-filter','rp-group-filter','rp-status-filter'].forEach(id => {
+      byId(id).addEventListener(id === 'rp-search' ? 'input' : 'change', renderReport);
+    });
+  }
+
+  function byId(id){ return document.getElementById(id); }
+
+  function syncReportUserCaches(){
+    registeredUsers.splice(0,registeredUsers.length,...USERS.filter(user => !EXCLUDED_REPORT_USERS.has(user.username) && (user.status ?? 'active') === 'active'));
+    knownReportUsers.splice(0,knownReportUsers.length,...USERS);
+  }
+
+  function switchAdminSection(section){
+    const isUsers = section === 'users';
+    byId('rp-reports-section').classList.toggle('rp-hidden', isUsers);
+    byId('rp-users-section').classList.toggle('rp-hidden', !isUsers);
+    byId('rp-tab-reports').classList.toggle('active', !isUsers);
+    byId('rp-tab-users').classList.toggle('active', isUsers);
+    byId('rp-mode-badge').classList.toggle('rp-hidden', isUsers);
+    byId('rp-section-title').textContent = isUsers ? 'Administración de usuarios' : 'Reporte consolidado';
+    byId('rp-report-subtitle').textContent = isUsers ? 'Usuarios autorizados para ingresar al módulo principal' : 'Resultados almacenados por la aplicación';
+    if(isUsers){
+      renderManagedUsers();
+      setTimeout(() => byId('rp-user-username').focus(),0);
+    }
+  }
+
+  function roleLabel(role){
+    return role === 'banco' ? 'Banco' : role === 'coop' ? 'Cooperativa' : role === 'imf' ? 'Microfinanciera' : role;
+  }
+
+  function generateRandomPassword(){
+    const upper='ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lower='abcdefghijkmnopqrstuvwxyz';
+    const digits='23456789';
+    const all=upper+lower+digits;
+    const values=new Uint32Array(10);
+    if(window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(values);
+    else for(let i=0;i<values.length;i++) values[i]=Math.floor(Math.random()*0xffffffff);
+    const pick=(chars,n)=>chars[n%chars.length];
+    let chars=[pick(upper,values[0]),pick(lower,values[1]),pick(digits,values[2])];
+    for(let i=3;i<values.length;i++) chars.push(pick(all,values[i]));
+    for(let i=chars.length-1;i>0;i--){
+      const j=values[(i+3)%values.length]%(i+1);
+      [chars[i],chars[j]]=[chars[j],chars[i]];
+    }
+    return chars.join('');
+  }
+
+  function showUserMessage(message,type='ok'){
+    const box=byId('rp-user-message');
+    box.className=`rp-user-message show ${type}`;
+    box.textContent=message;
+  }
+
+  function clearUserMessage(){
+    const box=byId('rp-user-message');
+    box.className='rp-user-message';
+    box.textContent='';
+  }
+
+  function userStatus(user){
+    return (user?.status ?? 'active') === 'disabled' ? 'disabled' : 'active';
+  }
+
+  function renderManagedUsers(){
+    const activeBody=byId('rp-user-body');
+    const disabledBody=byId('rp-user-disabled-body');
+    const users=[...USERS].sort((a,b)=>a.username.localeCompare(b.username,undefined,{sensitivity:'base'}));
+    const activeUsers=users.filter(user=>userStatus(user)==='active');
+    const disabledUsers=users.filter(user=>userStatus(user)==='disabled');
+    byId('rp-user-count').textContent=`${activeUsers.length} activo${activeUsers.length===1?'':'s'}`;
+    byId('rp-user-disabled-count').textContent=`${disabledUsers.length} usuario${disabledUsers.length===1?'':'s'}`;
+    byId('rp-user-empty').classList.toggle('rp-hidden', activeUsers.length>0);
+    byId('rp-user-disabled-empty').classList.toggle('rp-hidden', disabledUsers.length>0);
+    byId('rp-export-active-users').disabled=activeUsers.length===0;
+    const rowHtml=(user,disabled)=>`<tr>
+      <td><div class="rp-cell-main">${escapeHtml(user.username)}</div></td>
+      <td><span class="rp-user-pass">${escapeHtml(user.pass)}</span></td>
+      <td>${escapeHtml(roleLabel(user.role))}</td>
+      <td>${escapeHtml(user.institutionName)}</td>
+      <td>Grupo ${escapeHtml(user.grupoId)}</td>
+      <td><span class="rp-user-status ${disabled?'disabled':'active'}">${disabled?'Deshabilitado':'Activo'}</span></td>
+      <td><div class="rp-user-actions">${disabled
+        ? `<button class="rp-mini-btn success" type="button" data-user-action="enable" data-username="${escapeHtml(user.username)}">Habilitar</button><button class="rp-mini-btn" type="button" data-user-action="edit" data-username="${escapeHtml(user.username)}">Editar</button>`
+        : `<button class="rp-mini-btn" type="button" data-user-action="edit" data-username="${escapeHtml(user.username)}">Editar</button><button class="rp-mini-btn warn" type="button" data-user-action="disable" data-username="${escapeHtml(user.username)}">Deshabilitar</button>`}
+      </div></td>
+    </tr>`;
+    activeBody.innerHTML=activeUsers.map(user=>rowHtml(user,false)).join('');
+    disabledBody.innerHTML=disabledUsers.map(user=>rowHtml(user,true)).join('');
+  }
+
+  function resetUserForm(){
+    editingUsername=null;
+    byId('rp-user-form').reset();
+    byId('rp-user-form-title').textContent='Agregar usuario';
+    byId('rp-user-save').textContent='Agregar usuario';
+    byId('rp-user-cancel').classList.add('rp-hidden');
+    clearUserMessage();
+  }
+
+  function startEditUser(username){
+    const user=USERS.find(item=>item.username===username);
+    if(!user) return;
+    editingUsername=username;
+    byId('rp-user-username').value=user.username;
+    byId('rp-user-password').value=user.pass;
+    byId('rp-user-role').value=user.role;
+    byId('rp-user-institution').value=user.institutionName;
+    byId('rp-user-group').value=String(user.grupoId);
+    byId('rp-user-form-title').textContent='Editar usuario';
+    byId('rp-user-save').textContent='Guardar cambios';
+    byId('rp-user-cancel').classList.remove('rp-hidden');
+    clearUserMessage();
+    byId('rp-user-username').focus();
+  }
+
+  async function updateSavedStateForUser(originalUsername,user){
+    try{
+      const saved=await Persistence.loadState(originalUsername);
+      if(!saved) return;
+      const updated={...saved,user:user.username,institutionName:user.institutionName,sessionGroup:user.grupoId};
+      Persistence.saveState(user.username,updated);
+      if(originalUsername!==user.username){
+        try{ localStorage.removeItem('appState:'+originalUsername); }catch(_){ /* preserve backend copy if any */ }
+      }
+    }catch(err){
+      console.warn('No fue posible actualizar el estado histórico del usuario editado.',err);
+    }
+  }
+
+  async function saveManagedUser(event){
+    event.preventDefault();
+    clearUserMessage();
+    const existing=editingUsername ? USERS.find(item=>item.username===editingUsername) : null;
+    const nowIso=new Date().toISOString();
+    const user=normalizeManagedUser({
+      username:byId('rp-user-username').value,
+      pass:byId('rp-user-password').value,
+      role:byId('rp-user-role').value,
+      institutionName:byId('rp-user-institution').value,
+      grupoId:Number(byId('rp-user-group').value),
+      status:existing ? userStatus(existing) : 'active',
+      createdAt:existing?.createdAt || nowIso,
+      updatedAt:nowIso
+    });
+    if(!user){
+      showUserMessage('Complete todos los campos del usuario. El grupo debe estar entre 1 y 7.','error');
+      return;
+    }
+    const duplicate=USERS.find(item=>item.username===user.username && item.username!==editingUsername);
+    if(duplicate){
+      showUserMessage('Ya existe un usuario con ese nombre.','error');
+      return;
+    }
+    const originalUsername=editingUsername;
+    if(PERSISTENCE_CONFIG.API_BASE_URL && window.location.protocol!=='file:'){
+      try{
+        const savedRemote=await RemoteCentral.saveUser(user,originalUsername||user.username);
+        if(savedRemote&&savedRemote.user) Object.assign(user,normalizeManagedUser(savedRemote.user)||user);
+      }catch(err){
+        showUserMessage('No fue posible guardar el usuario en el servidor central. No se aplicaron cambios.','error');
+        console.warn('Central user save failed',err);
+        return;
+      }
+    }
+    if(originalUsername){
+      const index=USERS.findIndex(item=>item.username===originalUsername);
+      if(index<0){ showUserMessage('El usuario que intentaba editar ya no existe.','error'); return; }
+      USERS.splice(index,1,user);
+      if(originalUsername!==user.username){
+        const disabledUsers=loadDisabledUserSet();
+        if(disabledUsers.delete(originalUsername) && user.status==='disabled') disabledUsers.add(user.username);
+        if(RUNTIME_DISABLED_USERS.delete(originalUsername) && user.status==='disabled') RUNTIME_DISABLED_USERS.add(user.username);
+        persistDisabledUserSet(disabledUsers);
+      }
+      await updateSavedStateForUser(originalUsername,user);
+    }else{
+      USERS.push(user);
+    }
+    if(!persistManagedUserCatalog()){
+      showUserMessage('El usuario se aplicó en esta sesión, pero el navegador no permitió guardarlo de forma persistente.','error');
+    }else{
+      const msg=originalUsername ? 'Usuario actualizado correctamente.' : 'Usuario creado correctamente.';
+      resetUserForm();
+      showUserMessage(msg,'ok');
+    }
+    syncReportUserCaches();
+    demoRecords=[];
+    renderManagedUsers();
+    await loadRealRecords(false);
+  }
+
+  async function setManagedUserStatus(username,status){
+    const user=USERS.find(item=>item.username===username);
+    if(!user) return;
+    const target=status==='disabled' ? 'disabled' : 'active';
+    if(target==='disabled' && !window.confirm(`¿Deshabilitar el usuario ${username}? No podrá iniciar sesión, pero sus respuestas y su historial se conservarán.`)) return;
+    if(PERSISTENCE_CONFIG.API_BASE_URL && window.location.protocol!=='file:'){
+      try{ await RemoteCentral.setUserStatus(username,target); }
+      catch(err){ showUserMessage('No fue posible actualizar el estado del usuario en el servidor central.','error'); console.warn('Central user status failed',err); return; }
+    }
+    user.status=target;
+    user.updatedAt=new Date().toISOString();
+
+    // Keep a second, explicit deny-list. The main login checks both this list
+    // and the status stored in the managed catalog, preventing a stale in-memory
+    // catalog from allowing a disabled account to authenticate.
+    const disabledUsers=loadDisabledUserSet();
+    if(target==='disabled'){
+      disabledUsers.add(username);
+      RUNTIME_DISABLED_USERS.add(username);
+    }else{
+      disabledUsers.delete(username);
+      RUNTIME_DISABLED_USERS.delete(username);
+    }
+    const catalogSaved=persistManagedUserCatalog();
+    const denyListSaved=persistDisabledUserSet(disabledUsers);
+    if(!catalogSaved || !denyListSaved){
+      showUserMessage('El cambio se aplicó en esta sesión, pero el navegador no permitió guardarlo de forma persistente.','error');
+    }else{
+      if(target==='active') showUserMessage(`Usuario ${username} habilitado nuevamente.`,'ok');
+      else clearUserMessage();
+    }
+    syncReportUserCaches();
+    demoRecords=[];
+    if(editingUsername===username) resetUserForm();
+    renderManagedUsers();
+    await loadRealRecords(false);
+  }
+
+  function handleUserTableAction(event){
+    const button=event.target.closest('[data-user-action]');
+    if(!button) return;
+    const username=button.getAttribute('data-username');
+    const action=button.getAttribute('data-user-action');
+    if(action==='edit') startEditUser(username);
+    if(action==='disable') setManagedUserStatus(username,'disabled');
+    if(action==='enable') setManagedUserStatus(username,'active');
+  }
+
+  function exportActiveUsersExcel(){
+    const users=[...USERS]
+      .filter(user=>userStatus(user)==='active')
+      .sort((a,b)=>a.username.localeCompare(b.username,undefined,{sensitivity:'base'}));
+    if(!users.length) return;
+    const rows=[
+      ['Usuario','Password','Role','Institución','Grupo','Estado','Creado','Última actualización'],
+      ...users.map(user=>[
+        user.username,
+        user.pass,
+        roleLabel(user.role),
+        user.institutionName,
+        user.grupoId,
+        'Activo',
+        user.createdAt ? new Date(user.createdAt).toLocaleString('es-HN') : '',
+        user.updatedAt ? new Date(user.updatedAt).toLocaleString('es-HN') : ''
+      ])
+    ];
+    const bytes=createXlsx(rows,'Usuarios activos',[24,18,18,34,12,14,23,23]);
+    downloadBlob(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`DIG-IN_Usuarios_Activos_${fileDate()}.xlsx`);
+  }
+
+  function readSessionAuth(){
+    try{ return sessionStorage.getItem(AUTH_SESSION_KEY) === '1' && !!RemoteCentral.getAdminSecret(); }
+    catch(_){ return false; }
+  }
+
+  function writeSessionAuth(value){
+    try{
+      if(value) sessionStorage.setItem(AUTH_SESSION_KEY, '1');
+      else sessionStorage.removeItem(AUTH_SESSION_KEY);
+    }catch(_){ /* Session storage can be unavailable in hardened browsers. */ }
+  }
+
+  async function sha256(value){
+    if(!window.crypto || !window.crypto.subtle) throw new Error('Secure cryptography is unavailable in this browser.');
+    const bytes = new TextEncoder().encode(value);
+    const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+    return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2,'0')).join('');
+  }
+
+  async function handleLogin(event){
+    event.preventDefault();
+    const submit = byId('rp-login-submit');
+    const error = byId('rp-login-error');
+    submit.disabled = true;
+    submit.textContent = 'Validando...';
+    error.classList.remove('show');
+    try{
+      const username = byId('rp-username').value.trim().toUpperCase();
+      const passwordHash = await sha256(byId('rp-password').value);
+      if(username !== ADMIN_USERNAME || passwordHash !== ADMIN_PASSWORD_SHA256){
+        throw new Error('invalid-credentials');
+      }
+      RemoteCentral.setAdminSecret(byId('rp-password').value);
+      writeSessionAuth(true);
+      byId('rp-password').value = '';
+      await showDashboard();
+    }catch(err){
+      error.textContent = err && err.message !== 'invalid-credentials'
+        ? 'No fue posible validar el acceso en este navegador.'
+        : 'Usuario o contraseña incorrectos.';
+      error.classList.add('show');
+      byId('rp-password').focus();
+    }finally{
+      submit.disabled = false;
+      submit.textContent = 'Ingresar';
+    }
+  }
+
+  function showLogin(){
+    byId('rp-login-view').classList.remove('rp-hidden');
+    byId('rp-dashboard-view').classList.add('rp-hidden');
+    byId('rp-logout').classList.add('rp-hidden');
+    byId('rp-admin-pill').classList.add('rp-hidden');
+    setTimeout(() => byId('rp-username').focus(), 0);
+  }
+
+  async function showDashboard(){
+    byId('rp-login-view').classList.add('rp-hidden');
+    byId('rp-dashboard-view').classList.remove('rp-hidden');
+    byId('rp-logout').classList.remove('rp-hidden');
+    byId('rp-admin-pill').classList.remove('rp-hidden');
+    if(PERSISTENCE_CONFIG.API_BASE_URL && window.location.protocol!=='file:'){
+      try{
+        const migrationKey='digin:central:userCatalogMigrated:v1';
+        let migrated=false;
+        try{migrated=localStorage.getItem(migrationKey)==='1';}catch(_){}
+        if(!migrated){
+          await RemoteCentral.syncUsers(USERS);
+          try{localStorage.setItem(migrationKey,'1');}catch(_){}
+        }
+        const remoteUsers=(await RemoteCentral.listUsers()).map(normalizeManagedUser).filter(Boolean);
+        if(remoteUsers.length){ USERS.splice(0,USERS.length,...remoteUsers); persistManagedUserCatalog(); }
+      }catch(e){ console.warn('No fue posible sincronizar el catálogo central de usuarios.',e); }
+    }
+    syncReportUserCaches();
+    renderManagedUsers();
+    switchAdminSection('reports');
+    await loadRealRecords(false);
+  }
+
+  function logoutReport(){
+    writeSessionAuth(false);
+    RemoteCentral.clearAdminSecret();
+    realRecords = [];
+    demoRecords = [];
+    reportMode = 'real';
+    showLogin();
+  }
+
+  async function mapConcurrent(items, concurrency, worker){
+    const results = new Array(items.length);
+    let cursor = 0;
+    async function run(){
+      while(cursor < items.length){
+        const index = cursor++;
+        results[index] = await worker(items[index], index);
+      }
+    }
+    await Promise.all(Array.from({length:Math.min(concurrency, items.length)}, run));
+    return results;
+  }
+
+  function reportProfilesForRealData(){
+    const profiles = new Map(knownReportUsers.map(profile => [profile.username, profile]));
+    // Además de los usuarios configurados, detectamos cualquier appState:* existente en
+    // este navegador. Así reportería no pierde respuestas si el catálogo de usuarios cambió.
+    try{
+      for(let index=0; index<localStorage.length; index++){
+        const key = localStorage.key(index);
+        if(!key || !key.startsWith('appState:')) continue;
+        const username = key.slice('appState:'.length);
+        if(!username || profiles.has(username)) continue;
+        let saved = null;
+        try{ saved = JSON.parse(localStorage.getItem(key) || 'null'); }catch(_){ /* ignore malformed legacy state */ }
+        profiles.set(username,{
+          username, pass:'', role:'',
+          institutionName:saved?.institutionName || 'Sin institución',
+          grupoId:saved?.sessionGroup ?? null,
+          discoveredFromStorage:true
+        });
+      }
+    }catch(_){ /* localStorage may be blocked by browser privacy settings */ }
+    return [...profiles.values()];
+  }
+
+  async function loadRealRecords(forceReal){
+    if(isLoading) return;
+    isLoading = true;
+    setLoading(true, 'Consultando respuestas almacenadas...');
+    try{
+      if(PERSISTENCE_CONFIG.API_BASE_URL && window.location.protocol!=='file:'){
+        try{
+          const centralStates=await RemoteCentral.listStates();
+          realRecords=centralStates.map(item=>{
+            const p=item.user||{};
+            const saved=item.state||{};
+            const profile={username:item.username,pass:'',role:p.role||'',institutionName:p.institutionName||saved.institutionName||'Sin institución',grupoId:p.grupoId||saved.sessionGroup||null,status:p.status||'active'};
+            return {profile,hasData:true,isDemo:false,isTestAccount:EXCLUDED_REPORT_USERS.has(item.username),state:{...defaultState(),...saved,user:saved.user||item.username,institutionName:saved.institutionName||profile.institutionName,sessionGroup:saved.sessionGroup??profile.grupoId}};
+          });
+          reportMode='real';
+          refreshInstitutionOptions();
+          renderReport();
+          return;
+        }catch(err){ console.warn('Reportería central no disponible; se intentará la copia local.',err); }
+      }
+      const profilesToRead = reportProfilesForRealData();
+      const loaded = await mapConcurrent(profilesToRead, 8, async profile => {
+        try{
+          const saved = await Persistence.loadState(profile.username);
+          if(!saved) return null;
+          return {
+            profile,
+            hasData:true,
+            isDemo:false,
+            isTestAccount:EXCLUDED_REPORT_USERS.has(profile.username),
+            state:{...defaultState(), ...saved, user:saved.user || profile.username, institutionName:saved.institutionName || profile.institutionName, sessionGroup:saved.sessionGroup ?? profile.grupoId}
+          };
+        }catch(err){
+          console.warn('Reportería: no fue posible leer el estado de', profile.username, err);
+          return null;
+        }
+      });
+      realRecords = loaded.filter(Boolean);
+      if(forceReal || realRecords.length > 0){
+        reportMode = 'real';
+      }else{
+        if(!demoRecords.length) demoRecords = buildDemoRecords();
+        reportMode = 'demo';
+      }
+      refreshInstitutionOptions();
+      renderReport();
+    }finally{
+      isLoading = false;
+      setLoading(false);
+    }
+  }
+
+  function setLoading(loading, message){
+    ['rp-refresh','rp-demo-toggle','rp-export-excel','rp-export-users','rp-export-combos-excel','rp-export-pdf'].forEach(id => { if(byId(id)) byId(id).disabled = loading; });
+    if(loading){
+      byId('rp-source-notice').className = 'rp-notice info';
+      byId('rp-source-notice').innerHTML = `<span class="rp-spinner"></span><span>${escapeHtml(message || 'Cargando...')}</span>`;
+    }
+  }
+
+  function toggleDemoMode(){
+    if(reportMode === 'demo'){
+      reportMode = 'real';
+    }else{
+      if(!demoRecords.length) demoRecords = buildDemoRecords();
+      reportMode = 'demo';
+    }
+    clearFilters(false);
+    refreshInstitutionOptions();
+    renderReport();
+  }
+
+  function buildDemoRecords(){
+    const preferredIndexes = [0,4,8,12,16,20,24,28,30,34,37,41,44,48,51,55];
+    const profiles = preferredIndexes.map(index => registeredUsers[index]).filter(Boolean);
+    const ageValues = ['lt30','30to40','40to50','50plus'];
+    const experienceValues = ['lt1','1to4','4to7','7plus'];
+    const roles = ['analista','oficial','coordinador','gerencia'];
+    const institutionTypes = ['banco','cooperativa','microfinanciera'];
+    const frequencies = ['daily','weekly','biweekly','monthly','moreThanMonthly'];
+    const testIds = allTestLoans.map(loan => loan.id);
+    const now = Date.now();
+    return profiles.map((profile, index) => {
+      const eligible = allDceLoans.filter(loan => loan.grupoId == null || loan.grupoId === profile.grupoId);
+      const rotated = eligible.slice(index % eligible.length).concat(eligible.slice(0,index % eligible.length));
+      const viewedLoans = rotated.filter((_, pos) => (pos + index) % 5 !== 0).slice(0, 38);
+      const decisionLoans = viewedLoans.slice(0, 28);
+      const confirmedLoans = decisionLoans.filter((_, pos) => (pos + index) % 4 === 0);
+      const confirmedIds = confirmedLoans.map(loan => loan.id);
+      const notInterestedIds = decisionLoans.filter(loan => !confirmedIds.includes(loan.id)).map(loan => loan.id);
+      const spent = confirmedLoans.reduce((sum, loan) => sum + (Number(loan.priceTotal) || 0) * (Number(loan.nProd) || 1), 0);
+      const offers = {};
+      confirmedLoans.slice(0,2).forEach((loan, offerIndex) => {
+        offers[loan.id] = {monto:25000 + index*1800 + offerIndex*5000,tasa:String(14 + (index%5)),plazo:String(12 + offerIndex*6),condiciones:'Sujeto a validación documental',producerOffers:null};
+      });
+      return {
+        profile,
+        hasData:true,
+        isDemo:true,
+        state:{
+          ...defaultState(),
+          user:profile.username,
+          institutionName:profile.institutionName,
+          sessionGroup:profile.grupoId,
+          walletBalance:Math.max(0, walletInitial - spent),
+          sociodemographicQuestionsCompleted:true,
+          sociodemographicQuestions:{
+            ageRange:ageValues[index%ageValues.length],
+            agrExperienceYears:experienceValues[(index+2)%experienceValues.length],
+            experienceYears:experienceValues[(index+1)%experienceValues.length],
+            institutionType:institutionTypes[index%institutionTypes.length],
+            institutionOther:'',
+            institutionRole:roles[index%roles.length],
+            roleOther:'',
+            sex:index%3===0?'femenino':index%3===1?'masculino':'otro'
+          },
+          perceptionQuestionsCompleted:index%5!==4,
+          perceptionQuestions:{
+            interestingCredits:String(2 + (index%4)),
+            solvesNeed:index%3===0?'no':'yes',
+            monthlyWtp:1800 + index*350,
+            conditionsToWtp:'Alertas, trazabilidad y actualización periódica de la información',
+            frecuency:frequencies[index%frequencies.length],
+            alerts:index%4===0?'buscar':'alertas'
+          },
+          testViewed:testIds.slice(0, 4 + (index%3)),
+          testConfirmedAccess:testIds.slice(0, 2 + (index%2)),
+          testOffers:offers,
+          WTPviewed:viewedLoans.map(loan => loan.id),
+          WTPdismissedLoans:[...confirmedIds, ...notInterestedIds],
+          WTPconfirmedAccess:confirmedIds,
+          WTPnotInterested:notInterestedIds,
+          WTPsessionQuestionsCompleted:{'1':true,'2':true,'3':true,'4':true,'5':index%5!==4},
+          WTPsessionQuestionsCompletedDate:{'1':now-500000,'2':now-400000,'3':now-300000,'4':now-200000,'5':now-100000}
+        }
+      };
+    });
+  }
+
+  function currentRecords(){ return reportMode === 'demo' ? demoRecords : realRecords; }
+
+  function filteredRecords(){
+    const query = byId('rp-search').value.trim().toLocaleLowerCase('es');
+    const institution = byId('rp-institution-filter').value;
+    const group = byId('rp-group-filter').value;
+    const status = byId('rp-status-filter').value;
+    return currentRecords().filter(record => {
+      const state = record.state;
+      const haystack = `${state.user || record.profile.username} ${state.institutionName || record.profile.institutionName}`.toLocaleLowerCase('es');
+      if(query && !haystack.includes(query)) return false;
+      if(institution && (state.institutionName || record.profile.institutionName) !== institution) return false;
+      if(group && String(state.sessionGroup ?? record.profile.grupoId) !== group) return false;
+      if(status && participantStatus(state).key !== status) return false;
+      return true;
+    });
+  }
+
+  function participantStatus(state){
+    if(state.sociodemographicQuestionsCompleted && state.perceptionQuestionsCompleted) return {key:'complete',label:'Completado'};
+    if(state.sociodemographicQuestionsCompleted || countDecisions(state) > 0) return {key:'progress',label:'En progreso'};
+    return {key:'pending',label:'Solo inicio'};
+  }
+
+  function countDecisions(state){
+    const confirmed = new Set(asArray(state.WTPconfirmedAccess));
+    const rejected = new Set(asArray(state.WTPnotInterested).filter(id => !confirmed.has(id)));
+    return confirmed.size + rejected.size;
+  }
+
+  function asArray(value){ return Array.isArray(value) ? value : []; }
+
+  function refreshInstitutionOptions(){
+    const select = byId('rp-institution-filter');
+    const current = select.value;
+    const institutions = [...new Set(currentRecords().map(record => record.state.institutionName || record.profile.institutionName).filter(Boolean))].sort((a,b) => a.localeCompare(b,'es'));
+    select.innerHTML = '<option value="">Todas las instituciones</option>' + institutions.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+    if(institutions.includes(current)) select.value = current;
+  }
+
+  function clearFilters(render = true){
+    byId('rp-search').value = '';
+    byId('rp-institution-filter').value = '';
+    byId('rp-group-filter').value = '';
+    byId('rp-status-filter').value = '';
+    if(render) renderReport();
+  }
+
+  function renderReport(){
+    const records = filteredRecords();
+    const metrics = calculateMetrics(records);
+    const combinations = buildCombinationSummary(records);
+    const experimentCombinations = buildExperimentCombinationRows(records);
+    renderSourceNotice();
+    renderKpis(metrics);
+    renderProgress(metrics);
+    renderParticipants(records);
+    renderCombinations(combinations);
+    renderExperimentCombinations(experimentCombinations);
+    byId('rp-report-subtitle').textContent = reportMode === 'demo'
+      ? 'Vista de prueba con datos simulados; no modifica la información real.'
+      : '';
+    const badge = byId('rp-mode-badge');
+    badge.className = `rp-mode ${reportMode}`;
+    badge.textContent = reportMode === 'demo' ? 'DATOS DE PRUEBA' : 'DATOS REALES';
+    byId('rp-demo-toggle').textContent = reportMode === 'demo' ? 'Volver a datos reales' : 'Ver datos de prueba';
+    byId('rp-export-excel').disabled = records.length === 0;
+    byId('rp-export-users').disabled = records.length === 0;
+    byId('rp-export-combos-excel').disabled = records.length === 0;
+    byId('rp-export-pdf').disabled = records.length === 0;
+  }
+
+  function renderSourceNotice(){
+    const notice = byId('rp-source-notice');
+    if(reportMode === 'demo'){
+      notice.className = 'rp-notice warn';
+      notice.innerHTML = '<span>●</span><span><strong>Vista de prueba.</strong> Estos datos son simulados y solo sirven para revisar el formato de los reportes.</span>';
+      return;
+    }
+    if(PERSISTENCE_CONFIG.API_BASE_URL){
+      notice.className = 'rp-notice info';
+      notice.innerHTML = `<span>●</span><span><strong>Fuente central configurada.</strong> Se encontraron ${realRecords.length} participantes con información almacenada.</span>`;
+    }else{
+      const testCount = realRecords.filter(record => record.isTestAccount).length;
+      const testNote = testCount ? ` Incluye ${testCount} cuenta${testCount===1?'':'s'} de prueba con datos guardados.` : '';
+      notice.className = 'rp-notice warn';
+      notice.innerHTML = `<span>●</span><span><strong>Fuente local.</strong> Se encontraron ${realRecords.length} participantes con estado guardado en este navegador.${testNote} La reportería lee todos los estados <code>appState:*</code> disponibles. Para consolidar respuestas capturadas desde otros dispositivos, configure <code>API_BASE_URL</code>.</span>`;
+    }
+  }
+
+  function calculateMetrics(records){
+    const participantCount = records.length;
+    const generalComplete = records.filter(record => record.state.sociodemographicQuestionsCompleted === true).length;
+    const perceptionComplete = records.filter(record => record.state.perceptionQuestionsCompleted === true).length;
+    const decisions = records.reduce((sum, record) => sum + countDecisions(record.state), 0);
+    const confirmed = records.reduce((sum, record) => sum + new Set(asArray(record.state.WTPconfirmedAccess)).size, 0);
+    const viewed = records.reduce((sum, record) => sum + new Set(asArray(record.state.WTPviewed)).size, 0);
+    const wtpValues = records.map(record => Number(record.state.perceptionQuestions?.monthlyWtp)).filter(value => Number.isFinite(value) && value >= 0);
+    const averageWtp = wtpValues.length ? wtpValues.reduce((a,b)=>a+b,0)/wtpValues.length : 0;
+    return {participantCount,generalComplete,perceptionComplete,decisions,confirmed,viewed,averageWtp};
+  }
+
+  function renderKpis(metrics){
+    const values = [
+      ['Participantes', formatNumber(metrics.participantCount), `${registeredUsers.length} usuarios registrados`],
+      ['Información general', formatNumber(metrics.generalComplete), percentLabel(metrics.generalComplete,metrics.participantCount)],
+      ['Percepción completa', formatNumber(metrics.perceptionComplete), percentLabel(metrics.perceptionComplete,metrics.participantCount)],
+      ['Créditos vistos', formatNumber(metrics.viewed), 'Interacciones registradas'],
+      ['Total decisiones', formatNumber(metrics.decisions), 'Confirmadas + no interesa'],
+      ['WTP mensual promedio', formatMoney(metrics.averageWtp), 'Lempiras por mes']
+    ];
+    byId('rp-kpis').innerHTML = values.map(([label,value,note]) => `<article class="rp-kpi"><div class="rp-kpi-label">${escapeHtml(label)}</div><div class="rp-kpi-value">${escapeHtml(value)}</div><div class="rp-kpi-note">${escapeHtml(note)}</div></article>`).join('');
+  }
+
+  function renderProgress(metrics){
+    const participationBase = Math.max(metrics.participantCount,1);
+    const decisionBase = Math.max(metrics.decisions,1);
+    const rows = [
+      ['Información general completada', metrics.generalComplete, metrics.participantCount, ''],
+      ['Percepción completada', metrics.perceptionComplete, metrics.participantCount, 'blue'],
+      ['Decisiones con acceso confirmado', metrics.confirmed, metrics.decisions, 'gold']
+    ];
+    byId('rp-progress').innerHTML = rows.map(([label,value,total,color]) => {
+      const base = label.includes('acceso') ? decisionBase : participationBase;
+      const pct = base ? Math.min(100,(value/base)*100) : 0;
+      return `<div class="rp-progress-row"><div class="rp-progress-label"><span>${escapeHtml(label)}</span><strong>${formatNumber(value)} de ${formatNumber(total)}</strong></div><div class="rp-progress-track"><div class="rp-progress-fill ${color}" style="width:${pct.toFixed(1)}%"></div></div></div>`;
+    }).join('');
+    byId('rp-progress-meta').textContent = `${formatNumber(metrics.participantCount)} participantes filtrados`;
+  }
+
+  function renderParticipants(records){
+    const body = byId('rp-participant-body');
+    const empty = byId('rp-participant-empty');
+    byId('rp-participant-count').textContent = `${formatNumber(records.length)} registros`;
+    if(!records.length){
+      body.innerHTML = '';
+      empty.classList.remove('rp-hidden');
+      return;
+    }
+    empty.classList.add('rp-hidden');
+    body.innerHTML = records.map(record => {
+      const state = record.state;
+      const status = participantStatus(state);
+      const monthlyWtp = Number(state.perceptionQuestions?.monthlyWtp);
+      return `<tr>
+        <td><div class="rp-cell-main">${escapeHtml(state.user || record.profile.username)}</div></td>
+        <td><div class="rp-cell-main">${escapeHtml(state.institutionName || record.profile.institutionName)}</div></td>
+        <td>${escapeHtml(String(state.sessionGroup ?? record.profile.grupoId ?? ''))}</td>
+        <td><span class="rp-status ${status.key}">${status.label}</span></td>
+        <td>${formatMoney(Number(state.walletBalance) || 0)}</td>
+        <td>${Number.isFinite(monthlyWtp) ? formatMoney(monthlyWtp) : '-'}</td>
+        <td>${formatNumber(countDecisions(state))}</td>
+        <td>${formatNumber(new Set(asArray(state.WTPconfirmedAccess)).size)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function loanSignature(loan){
+    return [loan.fundamentales===true,loan.aclimatar===true,loan.whisp===true,Number(loan.priceTotal)||0].join('|');
+  }
+
+  function combinationBaseName(loan){
+    const f = loan.fundamentales === true;
+    const a = loan.aclimatar === true;
+    const w = loan.whisp === true;
+    if(f && a && w) return 'Paquete integral';
+    if(!f && a && w) return 'Clima y deforestación';
+    if(f && !a && w) return 'Fundamentales y deforestación';
+    if(!f && !a && w) return 'Solo deforestación';
+    if(f && a && !w) return 'Fundamentales y clima';
+    if(!f && a && !w) return 'Solo clima';
+    if(f && !a && !w) return 'Solo fundamentales';
+    return 'Sin información adicional';
+  }
+
+  function orderedCombinationDefinitions(){
+    const unique = new Map();
+    allDceLoans.forEach(loan => {
+      const key = loanSignature(loan);
+      if(!unique.has(key)) unique.set(key, loan);
+    });
+    const rank = {'true|true|true':0,'false|true|true':1,'true|false|true':2,'false|false|true':3,'true|true|false':4,'false|true|false':5,'true|false|false':6};
+    return [...unique.entries()].sort(([,a],[,b]) => {
+      const priceDiff = (Number(a.priceTotal)||0) - (Number(b.priceTotal)||0);
+      if(priceDiff) return priceDiff;
+      const keyA = [a.fundamentales===true,a.aclimatar===true,a.whisp===true].join('|');
+      const keyB = [b.fundamentales===true,b.aclimatar===true,b.whisp===true].join('|');
+      return (rank[keyA]??99) - (rank[keyB]??99);
+    }).map(([key,loan],index) => ({
+      key,
+      code:`C${String(index+1).padStart(2,'0')}`,
+      name:`${combinationBaseName(loan)} - L ${formatNumber(Number(loan.priceTotal)||0)}`,
+      detail:`Fundamentales: ${yesNo(loan.fundamentales)} | aCLIMAtar: ${yesNo(loan.aclimatar)} | Whisp: ${yesNo(loan.whisp)}`,
+      fundamentals:loan.fundamentales===true,
+      aclimatar:loan.aclimatar===true,
+      whisp:loan.whisp===true,
+      price:Number(loan.priceTotal)||0,
+      assigned:0,viewed:0,confirmed:0,notInterested:0,totalDecisions:0,totalCost:0,acceptance:0
+    }));
+  }
+
+  function buildCombinationSummary(records){
+    const definitions = orderedCombinationDefinitions();
+    const summary = new Map(definitions.map(item => [item.key,{...item}]));
+    records.forEach(record => {
+      const state = record.state;
+      const group = state.sessionGroup ?? record.profile.grupoId;
+      const eligible = allDceLoans.filter(loan => loan.grupoId == null || loan.grupoId === group);
+      eligible.forEach(loan => {
+        const item = summary.get(loanSignature(loan));
+        if(item) item.assigned += 1;
+      });
+      const viewed = new Set(asArray(state.WTPviewed));
+      const confirmed = new Set(asArray(state.WTPconfirmedAccess));
+      const notInterested = new Set(asArray(state.WTPnotInterested).filter(id => !confirmed.has(id)));
+      viewed.forEach(id => incrementCombination(summary,id,'viewed'));
+      confirmed.forEach(id => {
+        incrementCombination(summary,id,'confirmed');
+        const loan = loanById.get(id);
+        const item = loan && summary.get(loanSignature(loan));
+        if(item) item.totalCost += (Number(loan.priceTotal)||0) * (Number(loan.nProd)||1);
+      });
+      notInterested.forEach(id => incrementCombination(summary,id,'notInterested'));
+    });
+    return definitions.map(definition => {
+      const item = summary.get(definition.key);
+      item.totalDecisions = item.confirmed + item.notInterested;
+      item.acceptance = item.totalDecisions ? item.confirmed/item.totalDecisions : 0;
+      return item;
+    });
+  }
+
+  function incrementCombination(summary,id,field){
+    const loan = loanById.get(id);
+    if(!loan) return;
+    const item = summary.get(loanSignature(loan));
+    if(item) item[field] += 1;
+  }
+
+  function renderCombinations(rows){
+    byId('rp-combo-count').textContent = `${formatNumber(rows.length)} combinaciones`;
+    byId('rp-combo-body').innerHTML = rows.map(row => `<tr>
+      <td class="rp-combo-name"><span class="rp-combo-code">${row.code}</span><span class="rp-cell-main">${escapeHtml(row.name)}</span><div class="rp-cell-sub">${escapeHtml(row.detail)}</div></td>
+      <td class="${row.fundamentals?'rp-yes':'rp-no'}">${yesNo(row.fundamentals)}</td>
+      <td class="${row.aclimatar?'rp-yes':'rp-no'}">${yesNo(row.aclimatar)}</td>
+      <td class="${row.whisp?'rp-yes':'rp-no'}">${yesNo(row.whisp)}</td>
+      <td>${formatMoney(row.price)}</td>
+      <td>${formatNumber(row.assigned)}</td>
+      <td>${formatNumber(row.viewed)}</td>
+      <td>${formatNumber(row.confirmed)}</td>
+      <td>${formatNumber(row.notInterested)}</td>
+      <td><strong>${formatNumber(row.totalDecisions)}</strong></td>
+      <td>${formatPercent(row.acceptance)}</td>
+    </tr>`).join('');
+  }
+
+  function buildExperimentCombinationRows(records){
+    const counters = new Map(allDceLoans.map(loan => [loan.id,{assigned:0,viewed:0,confirmed:0,notInterested:0}]));
+    records.forEach(record => {
+      const state = record.state;
+      const group = state.sessionGroup ?? record.profile.grupoId;
+      allDceLoans.forEach(loan => {
+        if(loan.grupoId == null || loan.grupoId === group){
+          const item = counters.get(loan.id);
+          if(item) item.assigned += 1;
+        }
+      });
+      const viewed = new Set(asArray(state.WTPviewed));
+      const confirmed = new Set(asArray(state.WTPconfirmedAccess));
+      const notInterested = new Set(asArray(state.WTPnotInterested).filter(id => !confirmed.has(id)));
+      viewed.forEach(id => { const item=counters.get(id); if(item) item.viewed += 1; });
+      confirmed.forEach(id => { const item=counters.get(id); if(item) item.confirmed += 1; });
+      notInterested.forEach(id => { const item=counters.get(id); if(item) item.notInterested += 1; });
+    });
+    return [...allDceLoans]
+      .sort((a,b) => experimentProfileId(a)-experimentProfileId(b))
+      .map(loan => {
+        const item = counters.get(loan.id) || {assigned:0,viewed:0,confirmed:0,notInterested:0};
+        return {
+          id:loan.id, profileId:experimentProfileId(loan), acopio:loan.acopio===true,
+          productores:String(loan.productores ?? ''), nProd:Number(loan.nProd)||0,
+          paqueteFlexible:loan.paqueteFlexible===true, fundamentales:loan.fundamentales===true,
+          aclimatar:loan.aclimatar===true, whisp:loan.whisp===true, price:Number(loan.priceTotal)||0,
+          assigned:item.assigned, viewed:item.viewed, confirmed:item.confirmed, notInterested:item.notInterested,
+          totalDecisions:item.confirmed + item.notInterested
+        };
+      });
+  }
+
+  function experimentProfileId(loan){
+    const match = String(loan?.id || '').match(/(\d+)$/);
+    return match ? Number(match[1]) : 0;
+  }
+
+  function renderExperimentCombinations(rows){
+    byId('rp-catalog-count').textContent = `${formatNumber(rows.length)} combinaciones`;
+    byId('rp-catalog-body').innerHTML = rows.map(row => `<tr>
+      <td><span class="rp-catalog-id">${escapeHtml(row.id)}</span></td>
+      <td>${formatNumber(row.profileId)}</td>
+      <td class="${row.acopio?'rp-yes':'rp-no'}">${yesNo(row.acopio)}</td>
+      <td>${escapeHtml(row.productores)}</td>
+      <td>${formatNumber(row.nProd)}</td>
+      <td class="${row.paqueteFlexible?'rp-yes':'rp-no'}">${yesNo(row.paqueteFlexible)}</td>
+      <td class="${row.fundamentales?'rp-yes':'rp-no'}">${yesNo(row.fundamentales)}</td>
+      <td class="${row.aclimatar?'rp-yes':'rp-no'}">${yesNo(row.aclimatar)}</td>
+      <td class="${row.whisp?'rp-yes':'rp-no'}">${yesNo(row.whisp)}</td>
+      <td>${formatMoney(row.price)}</td>
+      <td>${formatNumber(row.assigned)}</td>
+      <td>${formatNumber(row.viewed)}</td>
+      <td>${formatNumber(row.confirmed)}</td>
+      <td>${formatNumber(row.notInterested)}</td>
+      <td><strong>${formatNumber(row.totalDecisions)}</strong></td>
+    </tr>`).join('');
+  }
+
+  function yesNo(value){ return value === true ? 'Sí' : 'No'; }
+  function formatNumber(value){ return new Intl.NumberFormat('es-HN',{maximumFractionDigits:0}).format(Number(value)||0); }
+  function formatMoney(value){ return `L ${new Intl.NumberFormat('es-HN',{maximumFractionDigits:0}).format(Number(value)||0)}`; }
+  function formatPercent(value){ return new Intl.NumberFormat('es-HN',{style:'percent',maximumFractionDigits:1}).format(Number(value)||0); }
+  function percentLabel(value,total){ return total ? `${formatPercent(value/total)} del total` : 'Sin participantes'; }
+  function escapeHtml(value){ return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
+
+  function recordToExcelValues(record){
+    const s = record.state;
+    const socio = s.sociodemographicQuestions || {};
+    const perception = s.perceptionQuestions || {};
+    return [
+      s.user || record.profile.username,
+      s.institutionName || record.profile.institutionName,
+      numberOrBlank(s.sessionGroup ?? record.profile.grupoId),
+      numberOrBlank(s.walletBalance),
+      String(s.sociodemographicQuestionsCompleted === true),
+      socio.ageRange || '',
+      socio.agrExperienceYears || '',
+      socio.experienceYears || '',
+      socio.institutionType || '',
+      socio.institutionOther || '',
+      socio.institutionRole || '',
+      socio.roleOther || '',
+      socio.sex || '',
+      String(s.perceptionQuestionsCompleted === true),
+      numberOrBlank(perception.interestingCredits),
+      perception.solvesNeed || '',
+      numberOrBlank(perception.monthlyWtp),
+      perception.conditionsToWtp || '',
+      perception.frecuency || '',
+      perception.alerts || '',
+      JSON.stringify(asArray(s.testViewed)),
+      JSON.stringify(asArray(s.testConfirmedAccess)),
+      JSON.stringify(s.testOffers && typeof s.testOffers === 'object' ? s.testOffers : {}),
+      JSON.stringify(asArray(s.WTPviewed)),
+      JSON.stringify(asArray(s.WTPdismissedLoans)),
+      JSON.stringify(asArray(s.WTPconfirmedAccess)),
+      JSON.stringify(asArray(s.WTPnotInterested))
+    ];
+  }
+
+  function numberOrBlank(value){
+    if(value === '' || value === null || value === undefined) return '';
+    const number = Number(value);
+    return Number.isFinite(number) ? number : value;
+  }
+
+  function userSummaryExcelValues(record){
+    const s = record.state;
+    const confirmed = new Set(asArray(s.WTPconfirmedAccess));
+    const notInterested = new Set(asArray(s.WTPnotInterested).filter(id => !confirmed.has(id)));
+    const viewed = new Set(asArray(s.WTPviewed));
+    const sessions = Object.entries(s.WTPsessionQuestionsCompleted || {}).filter(([,value]) => value === true).map(([key]) => key);
+    const dates = Object.values(s.WTPsessionQuestionsCompletedDate || {}).map(Number).filter(Number.isFinite);
+    const accessCost = [...confirmed].reduce((sum,id) => {
+      const loan = loanById.get(id);
+      return sum + (loan ? (Number(loan.priceTotal)||0)*(Number(loan.nProd)||1) : 0);
+    },0);
+    const wtp = Number(s.perceptionQuestions?.monthlyWtp);
+    return [
+      s.user || record.profile.username,
+      s.institutionName || record.profile.institutionName,
+      numberOrBlank(s.sessionGroup ?? record.profile.grupoId),
+      participantStatus(s).label,
+      numberOrBlank(s.walletBalance),
+      Number.isFinite(wtp) ? wtp : '',
+      viewed.size, confirmed.size, notInterested.size, confirmed.size + notInterested.size,
+      accessCost,
+      s.sociodemographicQuestionsCompleted === true ? 'Sí' : 'No',
+      s.perceptionQuestionsCompleted === true ? 'Sí' : 'No',
+      sessions.length,
+      dates.length ? new Date(Math.max(...dates)).toLocaleString('es-HN') : '',
+      record.isTestAccount ? 'Cuenta de prueba' : 'Usuario del experimento'
+    ];
+  }
+
+  function exportUserSummaryReport(){
+    const records = filteredRecords();
+    if(!records.length) return;
+    const columns = ['Usuario','Institución','Grupo','Estado','Saldo','WTP mensual','Créditos vistos','Accesos confirmados','No me interesa','Total decisiones','Costo total de accesos','Información general completa','Percepción completa','Sesiones completadas','Última sesión completada','Tipo de cuenta'];
+    const widths = [20,30,10,16,15,16,16,18,16,16,20,24,20,18,24,22];
+    const rows = [columns, ...records.map(userSummaryExcelValues)];
+    const bytes = createXlsx(rows,'Consolidado usuarios',widths);
+    const suffix = reportMode === 'demo' ? '_PRUEBA' : '';
+    downloadBlob(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`DIG-IN_Consolidado_Usuarios${suffix}_${fileDate()}.xlsx`);
+  }
+
+  function exportCombinationExcel(){
+    const records = filteredRecords();
+    if(!records.length) return;
+    const summary = buildCombinationSummary(records);
+    const catalog = buildExperimentCombinationRows(records);
+    const summaryRows = [[
+      'Código','Nombre de la combinación','Descripción','Fundamentales','aCLIMAtar','Whisp','Precio por productor',
+      'Total asignado','Vistas','Confirmadas','No interesa','Total decisiones','Aceptación','Costo total de accesos'
+    ], ...summary.map(row => [
+      row.code,row.name,row.detail,yesNo(row.fundamentals),yesNo(row.aclimatar),yesNo(row.whisp),row.price,
+      row.assigned,row.viewed,row.confirmed,row.notInterested,row.totalDecisions,formatPercent(row.acceptance),row.totalCost
+    ])];
+    const catalogRows = [[
+      'ID','Perfil','Acopio','Monto productores','N.º productores','Paquete flexible','Fundamentales','aCLIMAtar','Whisp','Precio',
+      'Asignado','Vistas','Confirmadas','No interesa','Decisiones','Aceptación'
+    ], ...catalog.map(row => [
+      row.id,row.profileId,yesNo(row.acopio),row.productores,row.nProd,yesNo(row.paqueteFlexible),yesNo(row.fundamentales),
+      yesNo(row.aclimatar),yesNo(row.whisp),row.price,row.assigned,row.viewed,row.confirmed,row.notInterested,row.totalDecisions,
+      formatPercent(row.totalDecisions ? row.confirmed/row.totalDecisions : 0)
+    ])];
+    const bytes = createXlsxWorkbook([
+      {name:'Resumen combinaciones',rows:summaryRows,widths:[11,34,54,16,16,14,19,17,12,15,15,18,14,22]},
+      {name:'504 combinaciones',rows:catalogRows,widths:[12,10,12,20,15,18,16,16,14,14,13,12,15,15,14,14]}
+    ]);
+    const suffix = reportMode === 'demo' ? '_PRUEBA' : '';
+    downloadBlob(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`DIG-IN_Combinaciones_504${suffix}_${fileDate()}.xlsx`);
+  }
+
+  function createXlsxWorkbook(sheets){
+    const validSheets = (sheets || []).filter(sheet => Array.isArray(sheet.rows) && sheet.rows.length);
+    if(!validSheets.length) return createXlsx([['Sin datos']],'Reporte',[18]);
+    const worksheets = [];
+    validSheets.forEach((sheet,sheetIndex) => {
+      const rows = sheet.rows;
+      const rowCount = rows.length;
+      const colCount = Math.max(1, ...rows.map(row => row.length));
+      const lastCell = `${excelColumn(colCount)}${rowCount}`;
+      const resolvedWidths = Array.from({length:colCount},(_,index) => Number(sheet.widths?.[index]) || 18);
+      const colsXml = resolvedWidths.map((width,index) => `<col min="${index+1}" max="${index+1}" width="${width}" customWidth="1"/>`).join('');
+      const rowsXml = rows.map((row,rowIndex) => {
+        const cells = Array.from({length:colCount},(_,colIndex) => xlsxCell(row[colIndex] ?? '',`${excelColumn(colIndex+1)}${rowIndex+1}`,rowIndex===0?1:0)).join('');
+        return `<row r="${rowIndex+1}"${rowIndex===0?' ht="30" customHeight="1"':''}>${cells}</row>`;
+      }).join('');
+      worksheets.push(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${lastCell}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${colsXml}</cols><sheetData>${rowsXml}</sheetData><autoFilter ref="A1:${lastCell}"/><pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.2" footer="0.2"/></worksheet>`);
+    });
+    const sheetEntries = validSheets.map((sheet,index) => `<sheet name="${xmlEscape(String(sheet.name || `Hoja ${index+1}`).slice(0,31))}" sheetId="${index+1}" r:id="rId${index+1}"/>`).join('');
+    const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets>${sheetEntries}</sheets><calcPr calcId="0" fullCalcOnLoad="1"/></workbook>`;
+    const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="10"/><name val="Arial"/><family val="2"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/><family val="2"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF047857"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border/><border><left/><right/><top/><bottom style="thin"><color rgb="FFD1D5DB"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFill="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+    const sheetOverrides = validSheets.map((_,index) => `<Override PartName="/xl/worksheets/sheet${index+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('');
+    const sheetRelationships = validSheets.map((_,index) => `<Relationship Id="rId${index+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index+1}.xml"/>`).join('');
+    const styleRelId = validSheets.length + 1;
+    const files = {
+      '[Content_Types].xml':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheetOverrides}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties"/></Types>`,
+      '_rels/.rels':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`,
+      'xl/workbook.xml':workbook,
+      'xl/_rels/workbook.xml.rels':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheetRelationships}<Relationship Id="rId${styleRelId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+      'xl/styles.xml':styles,
+      'docProps/core.xml':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Reporte de combinaciones DIG-IN</dc:title><dc:creator>DIG-IN</dc:creator><cp:lastModifiedBy>DIG-IN</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created></cp:coreProperties>`,
+      'docProps/app.xml':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>DIG-IN</Application><DocSecurity>0</DocSecurity><ScaleCrop>false</ScaleCrop><HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant><vt:variant><vt:i4>${validSheets.length}</vt:i4></vt:variant></vt:vector></HeadingPairs><TitlesOfParts><vt:vector size="${validSheets.length}" baseType="lpstr">${validSheets.map(sheet=>`<vt:lpstr>${xmlEscape(String(sheet.name || 'Hoja').slice(0,31))}</vt:lpstr>`).join('')}</vt:vector></TitlesOfParts></Properties>`
+    };
+    worksheets.forEach((worksheet,index) => { files[`xl/worksheets/sheet${index+1}.xml`] = worksheet; });
+    return zipStored(files);
+  }
+
+  function exportExcelReport(){
+    const records = filteredRecords();
+    if(!records.length) return;
+    const rows = [REPORT_COLUMNS, ...records.map(recordToExcelValues)];
+    const widths = [18,28,12,15,25,22,28,27,27,24,27,23,18,24,25,22,23,40,22,20,32,32,45,45,45,42,42];
+    const bytes = createXlsx(rows,'Reporte consolidado',widths);
+    const suffix = reportMode === 'demo' ? '_PRUEBA' : '';
+    downloadBlob(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`DIG-IN_Reporte_Consolidado${suffix}_${fileDate()}.xlsx`);
+  }
+
+  function createXlsx(rows,sheetName,widths){
+    const rowCount = rows.length;
+    const colCount = Math.max(1, rows[0]?.length || 1);
+    const lastCell = `${excelColumn(colCount)}${rowCount}`;
+    const resolvedWidths = Array.from({length:colCount},(_,index) => Number(widths?.[index]) || 18);
+    const colsXml = resolvedWidths.map((width,index) => `<col min="${index+1}" max="${index+1}" width="${width}" customWidth="1"/>`).join('');
+    const rowsXml = rows.map((row,rowIndex) => {
+      const cells = row.map((value,colIndex) => xlsxCell(value,`${excelColumn(colIndex+1)}${rowIndex+1}`,rowIndex===0?1:0)).join('');
+      return `<row r="${rowIndex+1}"${rowIndex===0?' ht="30" customHeight="1"':''}>${cells}</row>`;
+    }).join('');
+    const worksheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${lastCell}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${colsXml}</cols><sheetData>${rowsXml}</sheetData><autoFilter ref="A1:${lastCell}"/><pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.2" footer="0.2"/></worksheet>`;
+    const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="${xmlEscape(sheetName)}" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="0" fullCalcOnLoad="1"/></workbook>`;
+    const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="10"/><name val="Arial"/><family val="2"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/><family val="2"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF047857"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border/><border><left/><right/><top/><bottom style="thin"><color rgb="FFD1D5DB"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFill="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+    const files = {
+      '[Content_Types].xml':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`,
+      '_rels/.rels':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`,
+      'xl/workbook.xml':workbook,
+      'xl/_rels/workbook.xml.rels':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+      'xl/styles.xml':styles,
+      'xl/worksheets/sheet1.xml':worksheet,
+      'docProps/core.xml':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Reporte consolidado DIG-IN</dc:title><dc:creator>DIG-IN</dc:creator><cp:lastModifiedBy>DIG-IN</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created></cp:coreProperties>`,
+      'docProps/app.xml':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>DIG-IN</Application><DocSecurity>0</DocSecurity><ScaleCrop>false</ScaleCrop><HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs><TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>${xmlEscape(sheetName)}</vt:lpstr></vt:vector></TitlesOfParts></Properties>`
+    };
+    return zipStored(files);
+  }
+
+  function xlsxCell(value,reference,style){
+    const styleAttr = style ? ` s="${style}"` : '';
+    if(typeof value === 'number' && Number.isFinite(value)) return `<c r="${reference}"${styleAttr}><v>${value}</v></c>`;
+    const text = value === null || value === undefined ? '' : String(value);
+    return `<c r="${reference}" t="inlineStr"${styleAttr}><is><t xml:space="preserve">${xmlEscape(text)}</t></is></c>`;
+  }
+
+  function excelColumn(number){
+    let result = '';
+    while(number>0){ number--; result=String.fromCharCode(65+(number%26))+result; number=Math.floor(number/26); }
+    return result;
+  }
+
+  function xmlEscape(value){ return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
+
+  function zipStored(fileMap){
+    const encoder = new TextEncoder();
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+    const date = new Date();
+    const dosTime = ((date.getHours()&31)<<11)|((date.getMinutes()&63)<<5)|((Math.floor(date.getSeconds()/2))&31);
+    const dosDate = (((date.getFullYear()-1980)&127)<<9)|(((date.getMonth()+1)&15)<<5)|(date.getDate()&31);
+    Object.entries(fileMap).forEach(([name,content]) => {
+      const nameBytes = encoder.encode(name);
+      const dataBytes = encoder.encode(content);
+      const crc = crc32(dataBytes);
+      const localHeader = concatBytes(
+        u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(dosTime),u16(dosDate),u32(crc),u32(dataBytes.length),u32(dataBytes.length),u16(nameBytes.length),u16(0),nameBytes
+      );
+      localParts.push(localHeader,dataBytes);
+      const centralHeader = concatBytes(
+        u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(dosTime),u16(dosDate),u32(crc),u32(dataBytes.length),u32(dataBytes.length),u16(nameBytes.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset),nameBytes
+      );
+      centralParts.push(centralHeader);
+      offset += localHeader.length + dataBytes.length;
+    });
+    const central = concatBytes(...centralParts);
+    const end = concatBytes(u32(0x06054b50),u16(0),u16(0),u16(centralParts.length),u16(centralParts.length),u32(central.length),u32(offset),u16(0));
+    return concatBytes(...localParts,central,end);
+  }
+
+  function u16(value){ const bytes=new Uint8Array(2); new DataView(bytes.buffer).setUint16(0,value,true); return bytes; }
+  function u32(value){ const bytes=new Uint8Array(4); new DataView(bytes.buffer).setUint32(0,value>>>0,true); return bytes; }
+  function concatBytes(...parts){
+    const total = parts.reduce((sum,part)=>sum+part.length,0);
+    const result = new Uint8Array(total);
+    let position = 0;
+    parts.forEach(part => { result.set(part,position); position += part.length; });
+    return result;
+  }
+
+  const crcTable = (() => {
+    const table = new Uint32Array(256);
+    for(let n=0;n<256;n++){
+      let value=n;
+      for(let k=0;k<8;k++) value=(value&1)?(0xedb88320^(value>>>1)):(value>>>1);
+      table[n]=value>>>0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes){
+    let crc=0xffffffff;
+    for(let i=0;i<bytes.length;i++) crc=crcTable[(crc^bytes[i])&0xff]^(crc>>>8);
+    return (crc^0xffffffff)>>>0;
+  }
+
+  function exportCombinationPdf(){
+    const records = filteredRecords();
+    if(!records.length) return;
+    const metrics = calculateMetrics(records);
+    const combinations = buildCombinationSummary(records);
+    const catalog = buildExperimentCombinationRows(records);
+    const bytes = createCombinationPdf(combinations,catalog,metrics,reportMode);
+    const suffix = reportMode === 'demo' ? '_PRUEBA' : '';
+    downloadBlob(new Blob([bytes],{type:'application/pdf'}),`DIG-IN_Combinaciones_504${suffix}_${fileDate()}.pdf`);
+  }
+
+  function createCombinationPdf(summaryRows,catalogRows,metrics,mode){
+    const pageWidth=842,pageHeight=595;
+    const green=[.02,.59,.41],dark=[.07,.10,.16],muted=[.42,.45,.50],line=[.86,.88,.90],soft=[.96,.97,.98],greenSoft=[.93,.99,.96],goldSoft=[1,.98,.91];
+    const catalogRowsPerPage=29;
+    const catalogPageCount=Math.max(1,Math.ceil(catalogRows.length/catalogRowsPerPage));
+    const totalPages=1+catalogPageCount;
+    const pages=[];
+
+    function canvas(){
+      const commands=[];
+      const setFill=color=>commands.push(`${color.join(' ')} rg`);
+      const setStroke=color=>commands.push(`${color.join(' ')} RG`);
+      const rect=(x,y,w,h,fill,stroke) => { if(fill)setFill(fill); if(stroke)setStroke(stroke); commands.push(`${x} ${y} ${w} ${h} re ${fill&&stroke?'B':fill?'f':'S'}`); };
+      const text=(value,x,y,size=8,bold=false,color=dark) => { setFill(color); commands.push(`BT /${bold?'F2':'F1'} ${size} Tf 1 0 0 1 ${x} ${y} Tm ${pdfHex(value)} Tj ET`); };
+      const lineDraw=(x1,y1,x2,y2,color=line,width=.5) => { setStroke(color); commands.push(`${width} w ${x1} ${y1} m ${x2} ${y2} l S`); };
+      return {commands,rect,text,lineDraw};
+    }
+
+    // Página 1: resumen agrupado.
+    {
+      const {commands,rect,text,lineDraw}=canvas();
+      rect(0,0,pageWidth,pageHeight,[1,1,1],null);
+      rect(28,548,5,24,green,null);
+      text('DIG-IN',42,564,9,true,green);
+      text('REPORTE DE COMBINACIONES DE VARIABLES',42,550,16,true,dark);
+      text(`Experimento WTP | ${mode==='demo'?'DATOS DE PRUEBA':'DATOS REALES'} | Generado ${new Date().toLocaleString('es-HN')}`,42,535,7.5,false,muted);
+
+      const cards=[
+        ['Participantes',formatNumber(metrics.participantCount)],
+        ['General completo',formatNumber(metrics.generalComplete)],
+        ['Percepción completa',formatNumber(metrics.perceptionComplete)],
+        ['Decisiones',formatNumber(metrics.decisions)],
+        ['Accesos',formatNumber(metrics.confirmed)],
+        ['WTP promedio',formatMoney(metrics.averageWtp)]
+      ];
+      const cardGap=8,cardWidth=(pageWidth-56-cardGap*5)/6,cardY=476,cardH=43;
+      cards.forEach(([label,value],index)=>{
+        const x=28+index*(cardWidth+cardGap);
+        rect(x,cardY,cardWidth,cardH,index===5?goldSoft:greenSoft,line);
+        text(label.toUpperCase(),x+8,cardY+28,6.5,true,muted);
+        text(value,x+8,cardY+10,13,true,dark);
+      });
+      text('SECCIÓN 1 · RESUMEN AGRUPADO',28,457,8,true,green);
+      text('Cada combinación agrupa Fundamentales, aCLIMAtar, Whisp y precio por productor. Las decisiones suman confirmadas y "No me interesa".',28,444,7,false,muted);
+
+      const columns=[
+        {label:['Nombre'],width:150,align:'left'},
+        {label:['Combinación'],width:220,align:'left'},
+        {label:['Precio'],width:52,align:'right'},
+        {label:['Total','asignado'],width:55,align:'right'},
+        {label:['Vistas'],width:47,align:'right'},
+        {label:['Confir-','madas'],width:55,align:'right'},
+        {label:['No','interesa'],width:55,align:'right'},
+        {label:['Total','decisiones'],width:63,align:'right'},
+        {label:['Acept.'],width:55,align:'right'}
+      ];
+      const tableX=28,headerTop=429,headerHeight=25,rowHeight=15.6,totalWidth=columns.reduce((sum,column)=>sum+column.width,0);
+      rect(tableX,headerTop-headerHeight,totalWidth,headerHeight,green,null);
+      let x=tableX;
+      columns.forEach(column=>{
+        column.label.forEach((label,lineIndex)=>text(label.toUpperCase(),x+(column.align==='left'?5:column.width-5-approxTextWidth(label,6.2)),headerTop-11-lineIndex*8,6.2,true,[1,1,1]));
+        x+=column.width;
+      });
+      summaryRows.forEach((row,rowIndex)=>{
+        const top=headerTop-headerHeight-rowIndex*rowHeight;
+        if(rowIndex%2===1) rect(tableX,top-rowHeight,totalWidth,rowHeight,soft,null);
+        lineDraw(tableX,top-rowHeight,tableX+totalWidth,top-rowHeight,line,.35);
+        const values=[`${row.code} - ${row.name}`,row.detail,formatMoney(row.price),formatNumber(row.assigned),formatNumber(row.viewed),formatNumber(row.confirmed),formatNumber(row.notInterested),formatNumber(row.totalDecisions),formatPercent(row.acceptance)];
+        let cellX=tableX;
+        values.forEach((value,columnIndex)=>{
+          const column=columns[columnIndex];
+          const fitted=fitPdfText(value,column.width-8,6.4);
+          const textX=column.align==='left'?cellX+5:cellX+column.width-5-approxTextWidth(fitted,6.4);
+          text(fitted,textX,top-10.7,6.4,columnIndex===0,dark);
+          cellX+=column.width;
+        });
+      });
+      const tableBottom=headerTop-headerHeight-summaryRows.length*rowHeight;
+      x=tableX;
+      columns.forEach(column=>{ lineDraw(x,headerTop-headerHeight,x,tableBottom,line,.35); x+=column.width; });
+      lineDraw(x,headerTop-headerHeight,x,tableBottom,line,.35);
+      text('Criterio: las decisiones duplicadas se depuran por usuario y crédito. Si un crédito figura como confirmado y no interesado, prevalece confirmado.',28,37,6.6,false,muted);
+      text('DIG-IN | Reportería administrativa',28,22,6.5,true,green);
+      text(`Página 1 de ${totalPages}`,pageWidth-86,22,6.5,false,muted);
+      pages.push(commands.join('\n'));
+    }
+
+    // Sección 2: catálogo exacto de las 504 combinaciones.
+    const columns=[
+      {label:['ID'],width:35,align:'left'},
+      {label:['Perfil'],width:35,align:'right'},
+      {label:['Acopio'],width:39,align:'center'},
+      {label:['Monto','productores'],width:70,align:'right'},
+      {label:['N.º','prod.'],width:42,align:'right'},
+      {label:['Paquete','flexible'],width:52,align:'center'},
+      {label:['Funda-','mentales'],width:52,align:'center'},
+      {label:['aCLIMAtar'],width:52,align:'center'},
+      {label:['Whisp'],width:42,align:'center'},
+      {label:['Precio'],width:49,align:'right'},
+      {label:['Asignado'],width:49,align:'right'},
+      {label:['Vistas'],width:42,align:'right'},
+      {label:['Confir-','madas'],width:49,align:'right'},
+      {label:['No','interesa'],width:49,align:'right'},
+      {label:['Deci-','siones'],width:49,align:'right'},
+      {label:['Acept.'],width:48,align:'right'}
+    ];
+    const totalWidth=columns.reduce((sum,column)=>sum+column.width,0);
+    for(let pageIndex=0;pageIndex<catalogPageCount;pageIndex++){
+      const {commands,rect,text,lineDraw}=canvas();
+      const pageNumber=pageIndex+2;
+      const chunk=catalogRows.slice(pageIndex*catalogRowsPerPage,(pageIndex+1)*catalogRowsPerPage);
+      rect(0,0,pageWidth,pageHeight,[1,1,1],null);
+      rect(28,548,5,24,green,null);
+      text('DIG-IN',42,564,9,true,green);
+      text('SECCIÓN 2 · 504 COMBINACIONES DEL EXPERIMENTO',42,550,14,true,dark);
+      text(`Catálogo exacto | ${mode==='demo'?'DATOS DE PRUEBA':'DATOS REALES'} | Registros ${pageIndex*catalogRowsPerPage+1}-${Math.min((pageIndex+1)*catalogRowsPerPage,catalogRows.length)} de ${catalogRows.length}`,42,535,7.2,false,muted);
+      const tableX=28,headerTop=520,headerHeight=28,rowHeight=15.5;
+      rect(tableX,headerTop-headerHeight,totalWidth,headerHeight,green,null);
+      let x=tableX;
+      columns.forEach(column=>{
+        column.label.forEach((label,lineIndex)=>{
+          const width=approxTextWidth(label,5.7);
+          const tx=column.align==='left'?x+4:column.align==='center'?x+(column.width-width)/2:x+column.width-4-width;
+          text(label.toUpperCase(),tx,headerTop-11-lineIndex*7.5,5.7,true,[1,1,1]);
+        });
+        x+=column.width;
+      });
+      chunk.forEach((row,rowIndex)=>{
+        const top=headerTop-headerHeight-rowIndex*rowHeight;
+        if(rowIndex%2===1) rect(tableX,top-rowHeight,totalWidth,rowHeight,soft,null);
+        lineDraw(tableX,top-rowHeight,tableX+totalWidth,top-rowHeight,line,.3);
+        const acceptance=row.totalDecisions?row.confirmed/row.totalDecisions:0;
+        const values=[row.id,formatNumber(row.profileId),yesNo(row.acopio),row.productores,formatNumber(row.nProd),yesNo(row.paqueteFlexible),yesNo(row.fundamentales),yesNo(row.aclimatar),yesNo(row.whisp),formatMoney(row.price),formatNumber(row.assigned),formatNumber(row.viewed),formatNumber(row.confirmed),formatNumber(row.notInterested),formatNumber(row.totalDecisions),formatPercent(acceptance)];
+        let cellX=tableX;
+        values.forEach((value,columnIndex)=>{
+          const column=columns[columnIndex];
+          const fitted=fitPdfText(value,column.width-6,5.8);
+          const width=approxTextWidth(fitted,5.8);
+          const tx=column.align==='left'?cellX+3:column.align==='center'?cellX+(column.width-width)/2:cellX+column.width-3-width;
+          text(fitted,tx,top-10.5,5.8,columnIndex===0,dark);
+          cellX+=column.width;
+        });
+      });
+      const tableBottom=headerTop-headerHeight-chunk.length*rowHeight;
+      x=tableX;
+      columns.forEach(column=>{ lineDraw(x,headerTop-headerHeight,x,tableBottom,line,.3); x+=column.width; });
+      lineDraw(x,headerTop-headerHeight,x,tableBottom,line,.3);
+      text('Las métricas Asignado, Vistas, Confirmadas, No interesa y Decisiones se recalculan según los usuarios y filtros activos al momento de exportar.',28,37,6.4,false,muted);
+      text('DIG-IN | Catálogo de 504 combinaciones',28,22,6.5,true,green);
+      text(`Página ${pageNumber} de ${totalPages}`,pageWidth-86,22,6.5,false,muted);
+      pages.push(commands.join('\n'));
+    }
+
+    const objects=[];
+    objects[1]='<< /Type /Catalog /Pages 2 0 R >>';
+    objects[3]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+    objects[4]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+    const kids=[];
+    let nextObject=5;
+    pages.forEach(content=>{
+      const pageObject=nextObject++;
+      const contentObject=nextObject++;
+      kids.push(`${pageObject} 0 R`);
+      objects[pageObject]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObject} 0 R >>`;
+      objects[contentObject]=`<< /Length ${new TextEncoder().encode(content).length} >>\nstream\n${content}\nendstream`;
+    });
+    objects[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${kids.length} >>`;
+    const infoObject=nextObject;
+    objects[infoObject]=`<< /Title ${pdfHex('Reporte de combinaciones y catálogo 504 DIG-IN')} /Author ${pdfHex('DIG-IN')} /Creator ${pdfHex('Módulo de reportería DIG-IN')} >>`;
+    return buildPdf(objects,infoObject);
+  }
+
+  function pdfHex(value){
+    const bytes=[];
+    const special={'€':0x80,'‚':0x82,'ƒ':0x83,'„':0x84,'…':0x85,'†':0x86,'‡':0x87,'ˆ':0x88,'‰':0x89,'Š':0x8a,'‹':0x8b,'Œ':0x8c,'Ž':0x8e,'‘':0x91,'’':0x92,'“':0x93,'”':0x94,'•':0x95,'–':0x96,'—':0x97,'˜':0x98,'™':0x99,'š':0x9a,'›':0x9b,'œ':0x9c,'ž':0x9e,'Ÿ':0x9f};
+    for(const char of String(value ?? '')){
+      const code=char.codePointAt(0);
+      bytes.push(code<=255?code:(special[char]??63));
+    }
+    return `<${bytes.map(byte=>byte.toString(16).padStart(2,'0')).join('')}>`;
+  }
+
+  function approxTextWidth(value,size){ return String(value).length*size*.49; }
+  function fitPdfText(value,maxWidth,size){
+    const text=String(value ?? '');
+    if(approxTextWidth(text,size)<=maxWidth) return text;
+    const maxChars=Math.max(3,Math.floor(maxWidth/(size*.49))-3);
+    return text.slice(0,maxChars)+'...';
+  }
+
+  function buildPdf(objects,infoObjectId){
+    const encoder=new TextEncoder();
+    const parts=[];
+    let offset=0;
+    const push=text=>{const bytes=encoder.encode(text);parts.push(bytes);offset+=bytes.length;};
+    push('%PDF-1.4\n%1234\n');
+    const offsets=[0];
+    for(let index=1;index<objects.length;index++){
+      offsets[index]=offset;
+      push(`${index} 0 obj\n${objects[index]}\nendobj\n`);
+    }
+    const xrefOffset=offset;
+    push(`xref\n0 ${objects.length}\n0000000000 65535 f \n`);
+    for(let index=1;index<objects.length;index++) push(`${String(offsets[index]).padStart(10,'0')} 00000 n \n`);
+    const infoId = Number(infoObjectId) || (objects.length-1);
+    push(`trailer\n<< /Size ${objects.length} /Root 1 0 R /Info ${infoId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+    return concatBytes(...parts);
+  }
+
+  function downloadBlob(blob,filename){
+    const url=URL.createObjectURL(blob);
+    const anchor=document.createElement('a');
+    anchor.href=url;
+    anchor.download=filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }
+
+  function fileDate(){
+    const date=new Date();
+    const pad=value=>String(value).padStart(2,'0');
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}`;
+  }
+})();
+
 </script>
 </body>
 </html>
