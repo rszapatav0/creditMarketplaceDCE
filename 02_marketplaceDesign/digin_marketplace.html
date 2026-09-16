@@ -86,6 +86,11 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
 .loan-subtab:hover{border-color:var(--accent);color:var(--accent);}
 .loan-subtab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .loan-subtab:disabled{opacity:.4;pointer-events:none;}
+.demo-subtabs{display:flex;gap:8px;margin:-.75rem 0 1.25rem;}
+.demo-subtab{padding:8px 16px;border:1px solid var(--border);background:var(--white);color:var(--text2);border-radius:999px;cursor:pointer;font-size:12px;font-family:var(--font);transition:.15s;}
+.demo-subtab:hover{border-color:var(--accent);color:var(--accent);}
+.demo-subtab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.demo-subtab:disabled{opacity:.4;pointer-events:none;}
 .lcard{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:grid;grid-template-columns:1fr auto;align-items:center;gap:1rem;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative}
 .lcard:hover{border-color:var(--accent);box-shadow:0 2px 8px rgba(5,150,105,.08)}
 .loan-top{display:flex;align-items:center;gap:8px;margin-bottom:.5rem;flex-wrap:wrap}
@@ -353,6 +358,10 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
       <button class="loan-subtab" data-type="3" onclick="switchSession('3')">Sesión 3</button>
       <button class="loan-subtab" data-type="endSessions" onclick="switchSession('endSessions')">Finalizar</button>
     </div>
+    <div class="demo-subtabs" id="demo-subtabs" style="display:none">
+      <button class="demo-subtab active" data-demo-type="demoInstructions" onclick="switchDemoSubtab('demoInstructions')">Instrucciones</button>
+      <button class="demo-subtab" data-demo-type="demoCredits" onclick="switchDemoSubtab('demoCredits')">Créditos de demostración</button>
+    </div>
 
     <!-- S2.1: Contexto -->
     <div class="loan-info" id="context-info">
@@ -391,12 +400,20 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
           <option value="femenino">Femenino</option><option value="masculino">Masculino</option><option value="otro">Otro</option></select></div>
       </div></div><br>
 
-    <!-- S2.3: Créditos de demostración -->
-    <div class="loan-info" id="loan-demo-info" style="display:none">
-      <p style="margin-bottom:10px">Los siguientes créditos tienen como objetivo ilustrar el flujo de operación del Marketplace. Puede interactuar con ellos libremente durante todo el ejercicio: visualizarlos, explorar su información, estructurar ofertas y descartarlos, sin que estas acciones afecten el saldo, la disponibilidad de créditos o representen una oferta real. 
+    <!-- S2.3.1: Instrucciones + video de la demostración -->
+    <div class="loan-info" id="demo-video-instructions" style="display:none">
+      <p><strong>Instrucciones para la demostración</strong></p>
+      <p style="margin-bottom:10px">Los siguientes créditos tienen como objetivo ilustrar el flujo de operación del Marketplace. Puede interactuar con ellos libremente durante todo el ejercicio: visualizarlos, explorar su información, estructurar ofertas y descartarlos, sin que estas acciones afecten el saldo, la disponibilidad de créditos o representen una oferta real.
       Para explorarlos, interactúe con las tarjetas dando clic en:</p><ul style="padding-left:20px;margin-bottom:10px">
         <li><span class="btn-confirm-text">Me interesa →</span> - Permite ingresar al crédito y consultar el detalle según la información seleccionada.</li>
         <li><span class="btn-dismiss-text">No me interesa</span> - Retira temporalmente la tarjeta de la visualización.</li></ul>
+      <p style="margin-bottom:10px">Observe el siguiente video con la explicación de los créditos que encontrará a continuación. Debe verlo completo para habilitar la pestaña <strong>"Créditos de demostración"</strong> y la pestaña <strong>"3. Oportunidades de crédito disponibles"</strong>.</p><br>
+      <video id="demo-video" controls controlsList="nodownload" style="width:100%;max-width:720px;display:block;margin:0 auto;border-radius:8px;background:#000">
+        <source src="instruccionesDemo.mp4" type="video/mp4">
+        Su navegador no soporta la reproducción de este video.
+      </video>
+      <p id="demo-video-status" style="margin-top:10px;text-align:center;color:var(--text2);font-size:13px"></p>
+      <br>
       La siguiente tabla describe las variables disponibles en la previsualización de los créditos.<br><br>
       <table class="ptable"><thead><tr><th style="width:25%">
         <div class="mi-lbl2" style="font-size:11px;color:var(--text);text-align:center"><strong>Variable</strong></div></th>
@@ -1407,6 +1424,7 @@ function defaultState(){
 
     sociodemographicQuestionsCompleted: false,
     sociodemographicQuestions: {},
+    demoVideoCompleted: false,
     perceptionQuestionsCompleted: false,
     perceptionQuestions: {},
 
@@ -1435,6 +1453,7 @@ function saveState(){
 let state = defaultState();
 let tempDismissedLoans = new Set();
 let activeLoanTab = 'yes';
+let activeDemoSubtab = 'demoInstructions';
 
 // ─── Session waiting period ─────────────────────────────────────────────
 // Time (in milliseconds) the user must wait before continuing into a session
@@ -1625,14 +1644,60 @@ function switchLoanTab(tab){
   document.getElementById('loan-instructions').style.display='none';
   document.getElementById('context-info').style.display='none';
   document.getElementById('sociodemographic-questions').style.display='none';
-  document.getElementById('loan-demo-info').style.display =tab === 'yes' ? 'block' : 'none';
   document.getElementById('loan-subtabs').style.display = tab === 'no' ? 'flex' : 'none';
+  document.getElementById('demo-subtabs').style.display = tab === 'yes' ? 'flex' : 'none';
+  if(tab === 'yes'){
+    refreshDemoLocks();
+    switchDemoSubtab('demoInstructions');
+    return;
+  }
+  document.getElementById('demo-video-instructions').style.display='none';
   if(tab === 'no'){
     activeSession = 'instructions';
     updateSessionTabs();
     switchSession('instructions'); return;}
   renderLoans();
 }
+
+// ─── Tabs: Demo subtabs (Instrucciones / Créditos de demostración) ────────
+function switchDemoSubtab(subtab){
+  stopSessionWaitTimer();
+  const demoCreditsBtn = document.querySelector('.demo-subtab[data-demo-type="demoCredits"]');
+  if(subtab === 'demoCredits' && demoCreditsBtn && demoCreditsBtn.disabled) return;
+  activeDemoSubtab = subtab;
+  document.querySelectorAll('.demo-subtab').forEach(b=>b.classList.toggle('active', b.dataset.demoType === subtab));
+  document.getElementById('demo-video-instructions').style.display = subtab === 'demoInstructions' ? 'block' : 'none';
+  if(subtab === 'demoCredits'){
+    renderLoans();
+  } else {
+    document.getElementById('loan-list').innerHTML = '';
+    document.getElementById('loan-pagination').style.display = 'none';
+  }
+}
+
+function refreshDemoLocks(){
+  const videoCompleted = state.demoVideoCompleted === true;
+  const generalCompleted = state.sociodemographicQuestionsCompleted === true;
+  const demoCreditsBtn = document.querySelector('.demo-subtab[data-demo-type="demoCredits"]');
+  if(demoCreditsBtn) demoCreditsBtn.disabled = !videoCompleted;
+  const noTabBtn = document.querySelector('[data-tab="no"]');
+  if(noTabBtn) noTabBtn.disabled = !(generalCompleted && videoCompleted);
+}
+
+function onDemoVideoEnded(){
+  if(!state.demoVideoCompleted){
+    state.demoVideoCompleted = true;
+    saveState();
+  }
+  refreshDemoLocks();
+  const statusEl = document.getElementById('demo-video-status');
+  if(statusEl) statusEl.textContent = 'Video completado. Ya puede continuar a la pestaña "Créditos de demostración".';
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  const demoVideoEl = document.getElementById('demo-video');
+  if(demoVideoEl) demoVideoEl.addEventListener('ended', onDemoVideoEnded);
+});
 
 /* First tab: Context */
 function showContext(){
@@ -1642,8 +1707,9 @@ function showContext(){
   const completed = state.sociodemographicQuestionsCompleted === true;
   document.getElementById('general-tab').disabled     = completed;
   document.querySelector('[data-tab="yes"]').disabled = !completed;
-  document.querySelector('[data-tab="no"]').disabled  = !completed;
-  document.getElementById('loan-demo-info').style.display='none';
+  refreshDemoLocks();
+  document.getElementById('demo-video-instructions').style.display='none';
+  document.getElementById('demo-subtabs').style.display='none';
   document.getElementById('loan-subtabs').style.display='none';
   document.getElementById('loan-instructions').style.display='none';
   document.getElementById('context-info').style.display='block';
@@ -1664,7 +1730,8 @@ function showSociodemographicQuestions(){
   document.querySelector('[data-tab="yes"]').disabled = true;
   document.querySelector('[data-tab="no"]').disabled  = true;
   document.getElementById('loan-subtabs').style.display='none';
-  document.getElementById('loan-demo-info').style.display='none';
+  document.getElementById('demo-subtabs').style.display='none';
+  document.getElementById('demo-video-instructions').style.display='none';
   document.getElementById('context-info').style.display='none';
   document.getElementById('loan-instructions').style.display='none';
   document.getElementById('sociodemographic-questions').style.display='block';
@@ -1705,7 +1772,7 @@ function finishSociodemographicQuestions(){
     document.getElementById('context-tab').disabled       = false;
     document.getElementById('general-tab').disabled       = true;
     document.querySelector('[data-tab="yes"]').disabled   = false;
-    document.querySelector('[data-tab="no"]').disabled    = false;
+    refreshDemoLocks();
     switchLoanTab('yes');
 }
 
