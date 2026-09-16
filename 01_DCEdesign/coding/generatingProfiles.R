@@ -94,7 +94,7 @@ dim(full_factorial_df_adapted) # Should be 18 rows + profile_id column
 lapply(names(attributes_levels), function(attr) table(full_factorial_df_adapted[[attr]]))
 
 # Saving profiles
-file_path <- "./01_DCEdesign/profiles.xlsx"
+file_path <- "01_DCEdesign/coding/profiles.xlsx"
 wb        <- loadWorkbook(file_path)
 writeData(wb, "automated", full_factorial_df_adapted)
 saveWorkbook(wb, file_path, overwrite = TRUE)

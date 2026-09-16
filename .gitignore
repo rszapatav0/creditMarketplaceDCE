@@ -4,6 +4,7 @@
 
 # 02_marketplaceDesign
 02_marketplaceDesign/old/
+02_marketplaceDesign/videos/
 
 # 03_pilot
 03_pilotAnalysis/reports/
@@ -11,5 +12,5 @@
 03_pilotAnalysis/DCEpilotData.xlsx
 
 # General
-.Rproj.user/
-.Rhistory/
+.Rproj.user
+.Rhistory
