@@ -409,7 +409,7 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
         <li><span class="btn-dismiss-text">No me interesa</span> - Retira temporalmente el crédito de la visualización.</li></ul>
       <p style="margin-bottom:10px">Observe el siguiente video con la explicación de los créditos que encontrará a continuación.</p><br>
       <video id="demo-video" controls controlsList="nodownload" style="width:100%;max-width:720px;display:block;margin:0 auto;border-radius:8px;background:#000">
-        <source src="videos/instruccionesDemo.mp4" type="video/mp4">
+        <source src="instruccionesDemo.mp4" type="video/mp4">
         Su navegador no soporta la reproducción de este video.
       </video>
       <p id="demo-video-status" style="margin-top:10px;text-align:center;color:var(--text2);font-size:13px"></p>
@@ -446,7 +446,7 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
       <p style="margin-bottom:10px"><strong>Para cada oportunidad, revise la información disponible en la previsualización del crédito y decida si acceder a información adicional podría ser de interés para usted y su institución, teniendo en cuenta sus criterios y experiencia profesional en la asignación de crédito</strong>.</p>
       <p style="margin-bottom:10px">Observe el siguiente video con la explicación de los créditos que encontrará a continuación.</p>
       <video id="wtp-video" controls controlsList="nodownload" style="width:100%;max-width:720px;display:block;margin:0 auto 10px;border-radius:8px;background:#000">
-        <source src="videos/instruccionesDemo.mp4" type="video/mp4">
+        <source src="instruccionesDemo.mp4" type="video/mp4">
         Su navegador no soporta la reproducción de este video.
       </video>
       <p id="wtp-video-status" style="margin-top:10px;text-align:center;color:var(--text2);font-size:13px"></p>
@@ -1918,6 +1918,7 @@ const SESSION_WAIT_MS = 10*60*60*1000; // 2 minutes: 2*60*1000; 1 day: 24*60*60*
 // Order of numbered sessions. Add future session ids here (in order) and the
 // waiting period will automatically apply between them.
 const SESSION_ORDER = ['1','2','3'];
+const TEMPORARILY_BYPASS_VIDEO_CHECKS = true;
 let sessionWaitTimer = null;
 
 function stopSessionWaitTimer(){
@@ -2131,7 +2132,7 @@ function switchDemoSubtab(subtab){
 }
 
 function refreshDemoLocks(){
-  const videoCompleted = state.demoVideoCompleted === true;
+  const videoCompleted = TEMPORARILY_BYPASS_VIDEO_CHECKS || state.demoVideoCompleted === true;
   const generalCompleted = state.sociodemographicQuestionsCompleted === true;
   const demoCreditsBtn = document.querySelector('.demo-subtab[data-demo-type="demoCredits"]');
   if(demoCreditsBtn) demoCreditsBtn.disabled = !videoCompleted;
@@ -2468,7 +2469,7 @@ function toggleYesEsg(id, esgId, event){
 // ─── Tabs: WTP tabs ───────────────────────────────────────────────
 function switchSession(session){
   stopSessionWaitTimer();
-  if(SESSION_ORDER.includes(session) && state.wtpVideoCompleted !== true){
+  if(SESSION_ORDER.includes(session) && !TEMPORARILY_BYPASS_VIDEO_CHECKS && state.wtpVideoCompleted !== true){
     activeSession = 'instructions';
     updateSessionTabs();
     return;
@@ -2514,7 +2515,7 @@ function updateSessionTabs() {
   const sessionButtons = [...document.querySelectorAll('.loan-subtab')];
   const instructionsBtn = sessionButtons.find(btn => btn.dataset.type === 'instructions');
   if (instructionsBtn) {instructionsBtn.disabled = false;}
-  const videoCompleted = state.wtpVideoCompleted === true;
+  const videoCompleted = TEMPORARILY_BYPASS_VIDEO_CHECKS || state.wtpVideoCompleted === true;
   const nextSession = videoCompleted && sessionButtons.find(btn => {const session = btn.dataset.type;
     if (session === 'instructions' || session === 'endSessions') {return false;}
     return state.WTPsessionQuestionsCompleted?.[session] !== true;});
@@ -2526,7 +2527,7 @@ function updateSessionTabs() {
 }
 
 function nextSession() {
-  if(activeSession === 'instructions' && state.wtpVideoCompleted !== true) return;
+  if(activeSession === 'instructions' && !TEMPORARILY_BYPASS_VIDEO_CHECKS && state.wtpVideoCompleted !== true) return;
   const tabs = [...document.querySelectorAll('.loan-subtab')];
   const currentIndex = tabs.findIndex(btn => btn.dataset.type === activeSession);
   const nextTab = tabs
