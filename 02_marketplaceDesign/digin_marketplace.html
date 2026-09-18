@@ -349,7 +349,7 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
       <button class="loan-tab active" id="context-tab" onclick="showContext()">Contexto</button>
       <button class="loan-tab" id="general-tab" onclick="showSociodemographicQuestions()">1. Información general</button>
       <button class="loan-tab" data-tab="yes" onclick="switchLoanTab('yes')">2. Créditos de demostración</button>
-      <button class="loan-tab" data-tab="no" onclick="switchLoanTab('no')">3. Oportunidades de crédito disponibles</button>
+      <button class="loan-tab" data-tab="no" onclick="switchLoanTab('no')">3. Oportunidades de crédito</button>
     </div>
     <div class="loan-subtabs" id="loan-subtabs" style="display:none">
       <button class="loan-subtab active" data-type="instructions" onclick="switchSession('instructions')">Instrucciones</button>
@@ -365,12 +365,12 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
 
     <!-- S2.1: Contexto -->
     <div class="loan-info" id="context-info">
-      <p style="margin-bottom:10px">El presente estudio, realizado por Confianza SA-FGR y la Alianza Bioversity & CIAT, se desarrolla en el marco de iniciativas orientadas a la generación y uso de información sobre trazabilidad productiva y cumplimiento regulatorio en el sector agrícola. <strong>Su objetivo es comprender cómo las instituciones financieras incorporan distintos tipos de información en sus procesos de decisión crediticia.</strong></p>
+      <p style="margin-bottom:10px">El presente estudio, realizado por Confianza SA-FGR y la Alianza Bioversity Internacional & CIAT, se desarrolla en el marco de iniciativas orientadas a la generación y uso de información sobre trazabilidad productiva y cumplimiento regulatorio en el sector agrícola. <strong>Su objetivo es comprender cómo las instituciones financieras incorporan distintos tipos de información en sus procesos de decisión crediticia.</strong></p>
       <p style="margin-bottom:10px">Este ejercicio de valoración es de participación voluntaria. Está dirigido a responsables de la evaluación y asignación de crédito agrícola en instituciones financieras formales de Honduras, incluyendo bancos, cooperativas y microfinancieras. La información recopilada será anónima y se manejará de forma confidencial.</p>
       <p style="margin-bottom:10px">El estudio consta de tres etapas:</p><ol style="padding-left:20px;margin-bottom:10px">
         <li>En la pestaña <strong>"1. Información general"</strong> se solicitará información sobre su institución y experiencia profesional en la evaluación y asignación de crédito. Esta etapa dura aproximadamente 5 minutos.</li>
         <li>En la pestaña <strong>"2. Créditos de demostración"</strong> se presentarán simulaciones de oportunidades de crédito para familiarizarlo con la interacción en el Marketplace. La duración de esta etapa dependerá del tiempo que desee dedicar a explorar las simulaciones. Le invitamos a revisar diferentes oportunidades de crédito para familiarizarse con la dinámica del Marketplace.</li>
-        <li>En la pestaña <strong>"3. Oportunidades de crédito"</strong> se realizará el ejercicio de valoración, en el que deberá decidir qué oportunidades de crédito le interesa conocer más a fondo. Esta etapa se desarrollará en <strong>3 sesiones</strong>, con una duración aproximada de <strong>30 minutos cada una</strong> y un máximo de <strong>1 sesión por día</strong>. Al finalizar cada sección, responderá 2 preguntas de percepción sobre el ejercicio realizado.</li>
+        <li>En la pestaña <strong>"3. Oportunidades de crédito"</strong> se realizará el ejercicio de valoración, en el que deberá decidir qué oportunidades de crédito le interesaría conocer más a fondo. Esta etapa se desarrollará en <strong>3 sesiones</strong>, con una duración aproximada de <strong>30 minutos cada una</strong> y un máximo de <strong>1 sesión por día</strong>. Al finalizar cada sección, responderá 2 preguntas de percepción sobre el ejercicio realizado.</li>
       </ol>
       <p style="margin-bottom:15px">El ejercicio terminará una vez completadas las tres etapas y se habilite la pestaña <strong>"Finalizar"</strong> en la tercera etapa.</p>
       <p style="text-align:center"><strong>¡Gracias por su tiempo y disposición!</strong></p>
@@ -437,16 +437,16 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
           </td></tr>
         </tbody>
       </table><br>
-      Le invitamos a revisar diferentes oportunidades de crédito para familiarizarse con la dinámica del Marketplace. Al finalizar la exploración, continúe con la pestaña <strong>"3. Oportunidades de crédito disponibles"</strong>.
+      Le invitamos a revisar diferentes oportunidades de crédito para familiarizarse con la dinámica del Marketplace. Al finalizar la exploración, continúe con la pestaña <strong>"3. Oportunidades de crédito"</strong>.
     </div>
 
     <!-- S2.4.1: Instrucciones -->
     <div class="loan-info" id="loan-instructions" style="display:none">
-      <p style="margin-bottom:10px">Imagine que está utilizando el Marketplace de créditos en un día normal de trabajo. Encontrará oportunidades de crédito de productores de café ubicados dentro de la zona de interés de su institución financiera, que además <strong></strong>cuentan con una garantía preaprobada del 50%</strong>.</p>
+      <p style="margin-bottom:10px">Imagine que está utilizando el Marketplace de créditos en un día normal de trabajo. Encontrará oportunidades de crédito de productores de café ubicados dentro de la zona de interés de su institución financiera, que además <strong></strong>cuentan con una garantía preaprobada de Confianza SA-FGR del 50%</strong>.</p>
       <p style="margin-bottom:10px"><strong>Para cada oportunidad, revise la información disponible en la previsualización del crédito y decida si acceder a información adicional podría ser de interés para usted y su institución, teniendo en cuenta sus criterios y experiencia profesional en la asignación de crédito</strong>.</p>
       <p style="margin-bottom:10px">Observe el siguiente video con la explicación de los créditos que encontrará a continuación.</p>
       <video id="wtp-video" controls controlsList="nodownload" style="width:100%;max-width:720px;display:block;margin:0 auto 10px;border-radius:8px;background:#000">
-        <source src="instruccionesDemo.mp4" type="video/mp4">
+        <source src="ejercicioDemo.mp4" type="video/mp4">
         Su navegador no soporta la reproducción de este video.
       </video>
       <p id="wtp-video-status" style="margin-top:10px;text-align:center;color:var(--text2);font-size:13px"></p>
@@ -457,7 +457,7 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
         <li>En la esquina superior derecha encontrará el <span class="wallet-display">Saldo disponible</span> de su billetera. Este corresponde al presupuesto total para todas las sesiones y no podrá superar el monto disponible.</li>
         <li>El precio mostrado en cada previsualización corresponde al costo de acceso a la información adicional <strong>por productor</strong>, no por crédito. <strong>El valor descontado de su saldo dependerá del número de productores asociados a cada oportunidad.</strong></li>
       </ol><p style="margin-bottom:10px"><strong>No existe un número mínimo o máximo de oportunidades que le deban interesar. Tome sus decisiones como lo haría en una situación real de evaluación de oportunidades de crédito.</strong></p>
-      <p style="margin-bottom:10px">Cada sesión tendrá una duración aproximada de <strong>30 minutos</strong> y deberá completar un total de <strong>3 sesiones</strong>, con un máximo de <strong>1 sesión por día</strong>. El ejercicio finalizará una vez no hayan más oportunidades de crédito disponibles y se respondan las preguntas de percepción que se presentarán al final de cada sección.</p>
+      <p style="margin-bottom:10px">Cada sesión tendrá una duración aproximada de <strong>30 minutos</strong> y deberá completar un total de <strong>3 sesiones</strong>, con un máximo de <strong>1 sesión por día</strong>. El ejercicio finalizará una vez no hayan más oportunidades de crédito disponibles y se respondan las preguntas de percepción que se presentarán al final de cada sesión.</p>
       La siguiente tabla describe las variables disponibles en la previsualización de los créditos.<br><br>
       <table class="ptable"><thead><tr><th style="width:25%">
         <div class="mi-lbl2" style="font-size:11px;color:var(--text);text-align:center"><strong>Variable</strong></div></th>
@@ -1918,7 +1918,6 @@ const SESSION_WAIT_MS = 10*60*60*1000; // 2 minutes: 2*60*1000; 1 day: 24*60*60*
 // Order of numbered sessions. Add future session ids here (in order) and the
 // waiting period will automatically apply between them.
 const SESSION_ORDER = ['1','2','3'];
-const TEMPORARILY_BYPASS_VIDEO_CHECKS = true;
 let sessionWaitTimer = null;
 
 function stopSessionWaitTimer(){
@@ -1950,11 +1949,12 @@ function renderSessionWaiting(session, unlockTime){
     const sec = totalSec % 60;
     const countdown = `${min}:${String(sec).padStart(2, '0')}`;
     const unlockLabel = new Date(unlockTime).toLocaleTimeString('es-HN', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+    const unlockDate = new Date(unlockTime).toLocaleDateString('es-HN', {day: '2-digit',month: '2-digit',year: 'numeric'});
     document.getElementById('loan-instructions').style.display = 'none';
     list.innerHTML = `
       <div class="loan-info" id="session-wait-message">
         <strong>Espere antes de continuar</strong><br>
-        Esta sección se habilitará en <strong>${countdown}</strong> (a las ${unlockLabel}).<br>
+        Esta sección se habilitará el <strong>${unlockDate}</strong> a las <strong>${unlockLabel}</strong>.<br>
         Puede continuar navegando por las demás pestañas disponibles o cerrar la sesión y regresar cuando el tiempo se haya cumplido.
       </div>`;
   };
@@ -2132,7 +2132,7 @@ function switchDemoSubtab(subtab){
 }
 
 function refreshDemoLocks(){
-  const videoCompleted = TEMPORARILY_BYPASS_VIDEO_CHECKS || state.demoVideoCompleted === true;
+  const videoCompleted = state.demoVideoCompleted === true;
   const generalCompleted = state.sociodemographicQuestionsCompleted === true;
   const demoCreditsBtn = document.querySelector('.demo-subtab[data-demo-type="demoCredits"]');
   if(demoCreditsBtn) demoCreditsBtn.disabled = !videoCompleted;
@@ -2469,7 +2469,7 @@ function toggleYesEsg(id, esgId, event){
 // ─── Tabs: WTP tabs ───────────────────────────────────────────────
 function switchSession(session){
   stopSessionWaitTimer();
-  if(SESSION_ORDER.includes(session) && !TEMPORARILY_BYPASS_VIDEO_CHECKS && state.wtpVideoCompleted !== true){
+  if(SESSION_ORDER.includes(session) && state.wtpVideoCompleted !== true){
     activeSession = 'instructions';
     updateSessionTabs();
     return;
@@ -2515,7 +2515,7 @@ function updateSessionTabs() {
   const sessionButtons = [...document.querySelectorAll('.loan-subtab')];
   const instructionsBtn = sessionButtons.find(btn => btn.dataset.type === 'instructions');
   if (instructionsBtn) {instructionsBtn.disabled = false;}
-  const videoCompleted = TEMPORARILY_BYPASS_VIDEO_CHECKS || state.wtpVideoCompleted === true;
+  const videoCompleted = state.wtpVideoCompleted === true;
   const nextSession = videoCompleted && sessionButtons.find(btn => {const session = btn.dataset.type;
     if (session === 'instructions' || session === 'endSessions') {return false;}
     return state.WTPsessionQuestionsCompleted?.[session] !== true;});
@@ -2527,7 +2527,7 @@ function updateSessionTabs() {
 }
 
 function nextSession() {
-  if(activeSession === 'instructions' && !TEMPORARILY_BYPASS_VIDEO_CHECKS && state.wtpVideoCompleted !== true) return;
+  if(activeSession === 'instructions' && state.wtpVideoCompleted !== true) return;
   const tabs = [...document.querySelectorAll('.loan-subtab')];
   const currentIndex = tabs.findIndex(btn => btn.dataset.type === activeSession);
   const nextTab = tabs
