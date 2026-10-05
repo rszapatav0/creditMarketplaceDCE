@@ -454,7 +454,7 @@ html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:va
         <li>Seleccione <span class="btn-confirm-text">Me interesa →</span> cuando la oportunidad sea atractiva según la previsualización disponible, y por lo tanto le interesaría acceder a información adicional. Si selecciona esta opción, no se mostrarán pantallas adicionales.</li>
         <li>Si la oportunidad no es de interés, seleccione <span class="btn-dismiss-text">No me interesa</span> para descartarla.</li>
         <li><strong>Cada crédito aparece una sola vez</strong>. Una vez que seleccione <span class="btn-confirm-text">Me interesa →</span> o <span class="btn-dismiss-text">No me interesa</span>, la oportunidad desaparecerá de las disponibles. Evalúe cada oportunidad de manera independiente, como lo haría ante una nueva solicitud de crédito.</li>
-        <li>En la esquina superior derecha encontrará el <span class="wallet-display">Saldo disponible</span> de su billetera. Este corresponde al presupuesto total para todas las sesiones y no podrá superar el monto disponible.</li>
+        <li>En la esquina superior derecha encontrará el <span class="wallet-display">Saldo disponible</span> de la sesión activa. Cada sesión tiene un presupuesto asignado; cada sesión solo podrá usar su propio presupuesto y el saldo no utilizado no se acumula para las siguientes sesiones.</li>
         <li>El precio mostrado en cada previsualización corresponde al costo de acceso a la información adicional <strong>por productor</strong>, no por crédito. <strong>El valor descontado de su saldo dependerá del número de productores asociados a cada oportunidad.</strong></li>
       </ol><p style="margin-bottom:10px"><strong>No existe un número mínimo o máximo de oportunidades que le deban interesar. Tome sus decisiones como lo haría en una situación real de evaluación de oportunidades de crédito.</strong></p>
       <p style="margin-bottom:10px">Cada sesión tendrá una duración aproximada de <strong>30 minutos</strong> y deberá completar un total de <strong>3 sesiones</strong>, con un máximo de <strong>1 sesión por día</strong>. El ejercicio finalizará una vez no hayan más oportunidades de crédito disponibles y se respondan las preguntas de percepción que se presentarán al final de cada sesión.</p>
@@ -704,7 +704,10 @@ function persistManagedUserCatalog(){
 loadManagedUserCatalog();
 
 // ── Metrics and tools ──────────────────────────────────────────────────────
-const walletInitial=100000;
+// ─── Budget per session (edit these values manually) ───
+const SESSION_BUDGETS = { '1': 35000, '2': 35000, '3': 35000 };
+// Total wallet = sum of all session budgets
+const walletInitial = Object.values(SESSION_BUDGETS).reduce((a, b) => a + b, 0);
 
 const precioFundamentales=100;
 
@@ -1914,7 +1917,7 @@ let activeDemoSubtab = 'demoInstructions';
 // Time (in milliseconds) the user must wait before continuing into a session
 // after completing the previous one. Change this single value to adjust the
 // wait everywhere (e.g. 24*60*60*1000 for 1 day).
-const SESSION_WAIT_MS = 10*60*60*1000; // 2 minutes: 2*60*1000; 1 day: 24*60*60*1000;
+const SESSION_WAIT_MS = 10*1000; // 2 minutes: 2*60*1000; 1 day: 24*60*60*1000;
 // Order of numbered sessions. Add future session ids here (in order) and the
 // waiting period will automatically apply between them.
 const SESSION_ORDER = ['1','2','3'];
@@ -2075,12 +2078,50 @@ function setBalance(amount){
   saveState();
 }
 
+// ─── Session budget (display-only; derived from existing state, nothing stored) ───
+// Each session uses its own budget from SESSION_BUDGETS.
+// Unused budget from one session does not carry over to the next.
+function getSessionBudget(session){
+  return Number(SESSION_BUDGETS[String(session)]) || 0;
+}
+
+function getLoanAccessCost(l){
+  const n = Number(l.nProd) || 1;
+  const fp = (l.priceFundamentales != null) ? Number(String(l.priceFundamentales).replace(/,/g,'')) * n : 0;
+  const tp = (l.priceTools != null) ? Number(String(l.priceTools).replace(/,/g,'')) * n : 0;
+  return (l.fundamentales === true ? fp : 0) + ((l.aclimatar === true || l.whisp === true) ? tp : 0);
+}
+
+function getSessionSpent(session){
+  const confirmedIds = new Set(state.WTPconfirmedAccess || []);
+  return getLoans()
+    .filter(l => l.testValue === 'no' && String(l.session) === String(session) && confirmedIds.has(l.id))
+    .reduce((sum, l) => sum + getLoanAccessCost(l), 0);
+}
+
+function getSessionRemainingBudget(session){
+  return getSessionBudget(session) - getSessionSpent(session);
+}
+
+function getActiveBudgetSession(){
+  const subtabs = document.getElementById('loan-subtabs');
+  const sessionTabsVisible = subtabs && subtabs.style.display === 'flex';
+  return (sessionTabsVisible && SESSION_ORDER.includes(activeSession)) ? activeSession : null;
+}
+
 function renderBalanceDisplay(){
-  const wds=document.querySelectorAll('.wallet-display');
-  if(!wds.length)return;
+  const wd=document.getElementById('wallet-display');
+  if(!wd)return;
   const balance=getBalance();
-  wds.forEach(wd=>{wd.textContent=`Saldo disponible: ${balance.toLocaleString('es-HN')} HNL`;
-  if(balance < 0){wd.classList.add('negative');}else{wd.classList.remove('negative');}});
+  const session=getActiveBudgetSession();
+  if(session){
+    const remaining=getSessionRemainingBudget(session);
+    wd.textContent=`Saldo disponible sesión ${session}: ${remaining.toLocaleString('es-HN')} HNL`;
+    wd.style.display='';
+    if(remaining < 0){wd.classList.add('negative');}else{wd.classList.remove('negative');}
+  } else {
+    wd.style.display='none';
+  }
   document.querySelectorAll('.btn-confirm').forEach(btn => {btn.disabled = balance < 0;});
 }
 
@@ -2102,6 +2143,7 @@ function switchLoanTab(tab){
   document.getElementById('sociodemographic-questions').style.display='none';
   document.getElementById('loan-subtabs').style.display = tab === 'no' ? 'flex' : 'none';
   document.getElementById('demo-subtabs').style.display = tab === 'yes' ? 'flex' : 'none';
+  renderBalanceDisplay();
   if(tab === 'yes'){
     refreshDemoLocks();
     switchDemoSubtab('demoInstructions');
@@ -2182,6 +2224,7 @@ function showContext(){
   document.getElementById('loan-instructions').style.display='none';
   document.getElementById('context-info').style.display='block';
   document.getElementById('sociodemographic-questions').style.display='none';
+  renderBalanceDisplay();
   document.getElementById('loan-list').innerHTML = `
     <div class="btn-row">${completed? 
       '<button class="btn-p" id="continue-session" onclick="switchLoanTab(\'yes\')">Continuar →</button>' : 
@@ -2203,6 +2246,7 @@ function showSociodemographicQuestions(){
   document.getElementById('context-info').style.display='none';
   document.getElementById('loan-instructions').style.display='none';
   document.getElementById('sociodemographic-questions').style.display='block';
+  renderBalanceDisplay();
   document.getElementById('loan-list').innerHTML = `
     <div class="btn-row"><button class="btn-p" onclick="finishSociodemographicQuestions()">Guardar →</button></div>`;
   document.getElementById('loan-pagination').style.display='none';
@@ -2369,6 +2413,7 @@ function confirmAccess(id,event){
     const fp = (L.priceFundamentales != null)? Number(String(L.priceFundamentales).replace(/,/g,'')) * n : 0;
     const tp = (L.priceTools != null) ? Number(String(L.priceTools).replace(/,/g,'')) * n : 0;
     const total = (fundOn ? fp : 0) + (toolsOn ? tp : 0);
+    if(getSessionRemainingBudget(L.session) - total < 0){alert('Saldo insuficiente en el presupuesto de esta sesión para confirmar este acceso.');return;}
     if(getBalance() - total < 0){alert('Saldo insuficiente para confirmar este acceso.');return;}
     const esgKeys = ['aclimatar','whisp'] .filter(k => L[k] === true);
     const tierOnFinal = fundOn;
@@ -2475,6 +2520,7 @@ function switchSession(session){
     return;
   }
   activeSession = session;
+  renderBalanceDisplay();
   currentPage = 1;
   document.querySelectorAll('.loan-subtab').forEach(b => b.classList.toggle('active', b.dataset.type === session));
   if(SESSION_ORDER.includes(session)){
@@ -2524,6 +2570,7 @@ function updateSessionTabs() {
     if (session === 'instructions' || session === 'endSessions') {return;}
     btn.disabled = !videoCompleted || btn !== nextSession;});
   updateEndSessionsAvailability();
+  renderBalanceDisplay();
 }
 
 function nextSession() {
