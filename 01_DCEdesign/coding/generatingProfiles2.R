@@ -1,0 +1,189 @@
+#' ============================================================
+# DISCRETE CHOICE EXPERIMENT - SIMULATION
+#' ============================================================
+
+rm(list=ls())
+library(DoE.base)
+library(mlogit)
+library(ggplot2)
+library(idefix)
+library(MASS)
+library(openxlsx)
+library(dplyr)
+set.seed(21) # Reproducibility
+
+
+#' ------------------------------------------------------------
+# STEP 1: Define Attributes and Levels ---------------------
+#' ------------------------------------------------------------
+
+attributes_levels <- list(
+  acopio          = c("true", "false"),
+  productores     = c(10000, 50000, 100000),
+  nProd           = c(1, 10, 20),
+  paqueteFlexible = c("true", "false"),
+  fundamentales   = c("true", "false"),
+  aclimatar       = c("true", "false"),
+  whisp           = c("true", "false"),
+  priceTotal      = c(50, 100, 200)
+)
+
+# Define which attributes are numeric
+numeric_attributes <- c("productores","nProd","priceTotal")
+
+# Quick inspection
+str(attributes_levels)
+print(paste("Full factorial:", prod(lengths(attributes_levels)), "profiles"))
+
+
+
+
+#' ------------------------------------------------------------
+# STEP 2: Generate Full Factorial (Orthogonal) Design --------
+#' ------------------------------------------------------------
+
+# Automatically extract nlevels and factor.names from attributes_levels
+full_factorial <- fac.design(
+  nlevels      = sapply(attributes_levels, length),
+  factor.names = attributes_levels,
+  replications = 1,
+  repeat.only  = FALSE,
+  randomize    = FALSE
+)
+
+# Convert to clean data frame and fix types
+full_factorial_df <- as.data.frame(full_factorial)
+
+# Convert numeric attributes automatically
+for (attr in numeric_attributes) {
+  full_factorial_df[[attr]] <- as.numeric(as.character(full_factorial_df[[attr]]))
+}
+
+# Making changes
+full_factorial_df_adapted <- full_factorial_df %>%
+## Productores individuales
+### No hay créditos individuales con paquete flexible
+filter(!(nProd==1 & paqueteFlexible=="true")) %>%
+### No hay productores individuales con 100000 L
+filter(!(nProd==1 & productores==100000)) %>%
+## Créditos grupales
+filter(!(nProd==20 & productores==10000)) %>%
+## Créditos con acopio
+### No hay créditos de acopio con solo 1 productor
+#filter(!(acopio=="true" & nProd==1)) %>%
+### No hay créditos con solo 10000 L porque eso sería menos de 10 productores
+#filter(!(acopio=="true" & productores==10000)) %>%
+## Todo lo que se cobra es falso
+filter(!(fundamentales=="false" &	aclimatar=="false" &	whisp=="false")) #&	croppie=="false"
+print(paste("Full factorial:", nrow(full_factorial_df_adapted), "profiles"))
+
+# Add profile ID automatically
+full_factorial_df_adapted <- cbind(
+  profile_id = 1:nrow(full_factorial_df_adapted),
+  full_factorial_df_adapted
+)
+
+# Inspect
+print(full_factorial_df_adapted)
+
+#Checks
+## Parametric checks - also driven by attributes_levels
+dim(full_factorial_df_adapted) # Should be 18 rows + profile_id column
+
+## Check balance for ALL attributes automatically
+lapply(names(attributes_levels), function(attr) table(full_factorial_df_adapted[[attr]]))
+
+#' ------------------------------------------------------------
+# STEP 3: Assign profiles to balanced groups (1-7) -----------
+#' ------------------------------------------------------------
+# Objetivo: repartir los perfiles en n_groups grupos del mismo tamaño
+# de forma que, dentro de cada grupo, cada nivel de cada atributo
+# aparezca lo más cerca posible de su proporción en el diseño completo.
+# Método: asignación aleatoria inicial + búsqueda local por intercambios
+# (se intercambian perfiles entre grupos si eso mejora el balance).
+# Se repite varias veces (n_starts) y se queda con la mejor solución.
+
+n_groups    <- 7
+n_starts    <- 20      # reinicios aleatorios
+n_iter      <- 20000   # intercambios probados por reinicio
+balance_vars <- names(attributes_levels)
+# Si tu data frame tiene otra variable que también quieras balancear
+# (p. ej. "tipo" = banco/coop/grupo), agrégala aquí:
+# balance_vars <- c(balance_vars, "tipo")
+
+# Presupuesto (monto) de cada perfil = precio x nProd.
+# Se calcula como vector aparte (NO se agrega al data frame ni se exporta)
+# y se usa para que la suma del monto sea casi igual en todos los grupos.
+monto        <- full_factorial_df_adapted$priceTotal * full_factorial_df_adapted$nProd
+peso_monto   <- 10     # importancia del balance de monto frente a los niveles
+
+assign_balanced_groups <- function(df, vars, G, n_starts, n_iter,
+                                   cont = NULL, cont_weight = 1) {
+  n <- nrow(df)
+  # Matriz de indicadores: una columna por cada nivel de cada atributo
+  X <- do.call(cbind, lapply(vars, function(v) {
+    f <- factor(df[[v]])
+    m <- sapply(levels(f), function(l) as.integer(f == l))
+    colnames(m) <- paste0(v, "=", levels(f))
+    m
+  }))
+  # Variable continua (monto): se agrega como una columna más, reescalada
+  # para que 1 unidad = el monto promedio de un perfil (x cont_weight).
+  # Así el algoritmo balancea la suma del monto por grupo junto con los niveles.
+  if (!is.null(cont)) X <- cbind(X, monto = cont / mean(cont) * cont_weight)
+  sizes  <- rep(n %/% G, G) + c(rep(1, n %% G), rep(0, G - n %% G))
+  target <- outer(sizes / n, colSums(X))          # conteo ideal por grupo
+  
+  best <- list(loss = Inf)
+  for (s in seq_len(n_starts)) {
+    g   <- sample(rep(seq_len(G), times = sizes))
+    cnt <- rowsum(X, g, reorder = TRUE)            # G x K conteos
+    dev <- cnt - target
+    loss <- sum(dev^2)
+    for (it in seq_len(n_iter)) {
+      i <- sample.int(n, 1); j <- sample.int(n, 1)
+      a <- g[i]; b <- g[j]
+      if (a == b) next
+      d <- X[j, ] - X[i, ]
+      if (all(d == 0)) next
+      new_a <- dev[a, ] + d; new_b <- dev[b, ] - d
+      delta <- sum(new_a^2) + sum(new_b^2) - sum(dev[a, ]^2) - sum(dev[b, ]^2)
+      if (delta <= 0) {                            # acepta si no empeora
+        dev[a, ] <- new_a; dev[b, ] <- new_b
+        g[i] <- b; g[j] <- a
+        loss <- loss + delta
+      }
+    }
+    if (loss < best$loss) best <- list(loss = loss, g = g, dev = dev)
+  }
+  message(sprintf("Mejor pérdida (suma de desviaciones^2): %.2f | máx. desviación absoluta: %.2f",
+                  best$loss, max(abs(best$dev))))
+  best$g
+}
+
+full_factorial_df_adapted$grupo <- assign_balanced_groups(
+  full_factorial_df_adapted, balance_vars, n_groups, n_starts, n_iter,
+  cont = monto, cont_weight = peso_monto
+)
+
+# Checks de balance
+table(full_factorial_df_adapted$grupo)   # tamaño de cada grupo
+balance_check <- lapply(balance_vars, function(v)
+  table(grupo = full_factorial_df_adapted$grupo, nivel = full_factorial_df_adapted[[v]]))
+names(balance_check) <- balance_vars
+balance_check
+
+# Check del monto por grupo (total, promedio por tarjeta y % vs. el promedio)
+monto_grupo <- tapply(monto, full_factorial_df_adapted$grupo, sum)
+data.frame(
+  grupo          = names(monto_grupo),
+  monto_total    = as.numeric(monto_grupo),
+  monto_promedio = as.numeric(tapply(monto, full_factorial_df_adapted$grupo, mean)),
+  dif_pct        = round(100 * (monto_grupo / mean(monto_grupo) - 1), 3)
+)
+
+# Saving profiles
+file_path <- "01_DCEdesign/coding/profiles_0510.xlsx"
+wb        <- loadWorkbook(file_path)
+writeData(wb, "automated", full_factorial_df_adapted)
+saveWorkbook(wb, file_path, overwrite = TRUE)

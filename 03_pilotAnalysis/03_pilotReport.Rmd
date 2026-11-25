@@ -6,11 +6,12 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 SOURCE_ONLY <- TRUE
-results <- readRDS("pilotResults.rds")
+ids_sheet <- "pilot" # pilot main
+results <- readRDS(paste0(ids_sheet, "Results.rds"))
 ```
 
 ## Data quality
-
+wertyuiop
 ```{r}
 knitr::kable(results$diagnostics)
 ```

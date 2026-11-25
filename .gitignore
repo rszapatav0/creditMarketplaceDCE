@@ -1,15 +1,18 @@
 # 01_DCEdesign
-01_DCEdesign/documentation/
-01_DCEdesign/.Rhistory
+01_DCEdesign/coding/old/
+01_DCEdesign/documentation/old/
 
 # 02_marketplaceDesign
-02_marketplaceDesign/old/
 02_marketplaceDesign/videos/
 
 # 03_pilot
 03_pilotAnalysis/reports/
 03_pilotAnalysis/.Rhistory
-03_pilotAnalysis/DCEpilotData.xlsx
+03_pilotAnalysis/DCEdata.xlsx
+03_pilotAnalysis/03_WTP Study Report.docx
+03_pilotAnalysis/03_WTP Study Report.pdf
+03_pilotAnalysis/mainResults.rds
+03_pilotAnalysis/pilotResults.rds
 
 # General
 .Rproj.user

@@ -13,14 +13,15 @@ invisible(lapply(pkgs, library, character.only = TRUE))
 rm(list=ls())
 
 # ---- 0. Edit as needed -----------------------------------------------------
-data_path <- "./03_pilotAnalysis/DCEpilotData.xlsx"
+data_path <- "./03_pilotAnalysis/DCEdata.xlsx"
+ids_sheet <- "main" # pilot main
 
 dce_vars <- c("acopio", "productores", "nProd", "paqueteFlexible",
               "fundamentales", "aclimatar", "whisp", "priceTotal")
 binary_attrs <- c("acopio", "paqueteFlexible", "fundamentales", "aclimatar", "whisp")
 
 # ---- 1. Load & type the DCE variables only ---------------------------------
-d <- read_excel(data_path) %>%
+d <- read_excel(data_path, sheet=ids_sheet) %>%
   mutate(
     across(all_of(binary_attrs), ~ ifelse(.x == "true", 1, 0)),
     productores = as.numeric(productores),
@@ -119,7 +120,7 @@ results <- list(
   model_stats = model_stats, coef_df = coef_df,
   wtp_table = wtp_table, sample_size_tbl = sample_size_tbl, ss_plot = ss_plot
 )
-saveRDS(results, "03_pilotAnalysis/pilotResults.rds")
+saveRDS(results, paste0("03_pilotAnalysis/", ids_sheet, "Results.rds"))
 
 # Console printout only when run standalone (pilot_report.Rmd sets
 # SOURCE_ONLY <- TRUE before sourcing this script, to avoid double-printing)

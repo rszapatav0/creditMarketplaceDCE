@@ -27,7 +27,7 @@
 # ============================================================================
 
 # ---- 0. Packages -----------------------------------------------------------
-required_pkgs <- c("readxl", "dplyr", "tidyr", "purrr", "jsonlite", "stringr", "writexl")
+required_pkgs <- c("readxl", "dplyr", "tidyr", "purrr", "jsonlite", "stringr", "writexl","openxlsx")
 missing_pkgs  <- setdiff(required_pkgs, rownames(installed.packages()))
 if (length(missing_pkgs) > 0) install.packages(missing_pkgs)
 invisible(lapply(required_pkgs, library, character.only = TRUE))
@@ -35,13 +35,14 @@ rm(list=ls())
 
 # ---- 1. Inputs you may need to edit ----------------------------------------
 
-pilot_path  <- "./03_pilotAnalysis/reports/DIG-IN_Reporte_Consolidado_2026-09-15_1021.xlsx"  # <- point to the latest export
+#pilot_path  <- "./03_pilotAnalysis/reports/DIG-IN_Reporte_Consolidado_2026-09-18_1723.xlsx"
+pilot_path  <- "./03_pilotAnalysis/reports/DIG-IN_Reporte_Consolidado_SIMULATED.xlsx"
 pilot_sheet <- "Reporte consolidado"
 
 ids_path  <- "./01_DCEdesign/coding/profiles.xlsx"
-ids_sheet <- "check"
+ids_sheet <- "main" # pilot main
 
-output_path <- "./03_pilotAnalysis/DCEpilotData.xlsx"
+output_path <- "./03_pilotAnalysis/DCEdata.xlsx"
 
 # Pre-registered attribute/level list (used only to sanity-check the ids file)
 attributes_levels <- list(
@@ -175,7 +176,7 @@ if (nrow(unmatched) > 0) {
 
 # ---- 7. Attach respondent-level covariates ----------------------------------
 
-respondent_info <- pilot_raw %>% select(user, sessionGroup, all_of(respondent_vars))
+respondent_info <- pilot_raw %>% dplyr::select(user, sessionGroup, all_of(respondent_vars))
 
 dce_long <- choice_long %>% left_join(respondent_info, by = "user")
 
@@ -210,8 +211,9 @@ dce_long <- dce_long %>%
   arrange(user, id)
 
 # ---- 9. Save --------------------------------------------------------------
-
-write_xlsx(dce_long, output_path)
+wb <- loadWorkbook(output_path)
+writeData(wb, ids_sheet, dce_long)
+saveWorkbook(wb, output_path, overwrite = TRUE)
 
 cat(sprintf(
   "Done: %d respondents -> %d user-alternative rows written to '%s'\n",
